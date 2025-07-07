@@ -6,17 +6,17 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "start": "pnpm build && pnpm preview"
+    "start": "npm build && npm preview"
   },
   "dependencies": {
-    "@powersync/react": "workspace:*",
-    "@powersync/web": "workspace:*",
     "@emotion/react": "11.11.4",
     "@emotion/styled": "11.11.5",
     "@journeyapps/wa-sqlite": "^1.2.0",
     "@mui/icons-material": "^5.15.12",
     "@mui/material": "^5.15.12",
     "@mui/x-data-grid": "^6.19.6",
+    "@powersync/react": "^1.5.3",
+    "@powersync/web": "^1.23.0",
     "@supabase/supabase-js": "^2.39.7",
     "formik": "^2.4.6",
     "lodash": "^4.17.21",
