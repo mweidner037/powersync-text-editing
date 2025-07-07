@@ -17,7 +17,7 @@ import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { SearchBarWidget } from '@/components/widgets/SearchBarWidget';
-import { TodoListsWidget } from '@/components/widgets/TodoListsWidget';
+import { DocumentsWidget } from '@/components/widgets/DocumentsWidget';
 import { GuardBySync } from '@/components/widgets/GuardBySync';
 
 export default function TodoListsPage() {
@@ -47,7 +47,7 @@ export default function TodoListsPage() {
   };
 
   return (
-    <NavigationPage title="Todo Lists">
+    <NavigationPage title="Documents">
       <Box>
         <S.FloatingActionButton onClick={() => setShowPrompt(true)}>
           <AddIcon />
@@ -55,7 +55,7 @@ export default function TodoListsPage() {
         <Box>
           <SearchBarWidget />
           <GuardBySync>
-            <TodoListsWidget />
+            <DocumentsWidget />
           </GuardBySync>
         </Box>
         {/* TODO use a dialog service in future, this is just a simple example app */}
@@ -71,11 +71,10 @@ export default function TodoListsPage() {
             }
           }}
           aria-labelledby="alert-dialog-title"
-          aria-describedby="alert-dialog-description"
-        >
-          <DialogTitle id="alert-dialog-title">{'Create Todo List'}</DialogTitle>
+          aria-describedby="alert-dialog-description">
+          <DialogTitle id="alert-dialog-title">{'Create Document'}</DialogTitle>
           <DialogContent>
-            <DialogContentText id="alert-dialog-description">Enter a name for a new todo list</DialogContentText>
+            <DialogContentText id="alert-dialog-description">Enter a name for a new document</DialogContentText>
             <TextField sx={{ marginTop: '10px' }} fullWidth inputRef={nameInputRef} label="List Name" autoFocus />
           </DialogContent>
           <DialogActions>

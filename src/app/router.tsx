@@ -2,8 +2,8 @@ import { Outlet, createBrowserRouter, useNavigate } from 'react-router-dom';
 import LoginPage from '@/app/auth/login/page';
 import RegisterPage from '@/app/auth/register/page';
 import EntryPage from '@/app/page';
-import TodoEditPage from '@/app/views/todo-lists/edit/page';
-import TodoListsPage from '@/app/views/todo-lists/page';
+import DocumentEditPage from '@/app/views/documents/edit/page';
+import TodoListsPage from '@/app/views/documents/page';
 import ViewsLayout from '@/app/views/layout';
 import SQLConsolePage from '@/app/views/sql-console/page';
 import { useSupabase } from '@/components/providers/SystemProvider';
@@ -20,7 +20,7 @@ interface AuthGuardProps {
 }
 
 const AuthGuard = ({ children }: AuthGuardProps) => {
-  const connector = useSupabase()
+  const connector = useSupabase();
 
   const navigate = useNavigate();
   React.useEffect(() => {
@@ -39,7 +39,7 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
       if (!connector.currentSession) {
         navigate(LOGIN_ROUTE);
       }
-    }
+    };
     if (connector.ready) {
       loginGuard();
     } else {
@@ -50,7 +50,6 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
       });
       return () => l?.();
     }
-
   }, []);
   return children;
 };
@@ -88,7 +87,7 @@ export const router = createBrowserRouter([
       },
       {
         path: TODO_EDIT_ROUTE,
-        element: <TodoEditPage />
+        element: <DocumentEditPage />
       },
       {
         path: SQL_CONSOLE_ROUTE,

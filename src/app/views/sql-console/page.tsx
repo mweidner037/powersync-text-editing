@@ -3,13 +3,14 @@ import { useQuery } from '@powersync/react';
 import { Box, Button, Grid, TextField, styled } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
+import { LISTS_TABLE } from '@/library/powersync/AppSchema';
 
 export type LoginFormParams = {
   email: string;
   password: string;
 };
 
-const DEFAULT_QUERY = 'SELECT * FROM lists';
+const DEFAULT_QUERY = `SELECT * FROM ${LISTS_TABLE}`;
 
 export default function SQLConsolePage() {
   const inputRef = React.useRef<HTMLInputElement>();
@@ -57,8 +58,7 @@ export default function SQLConsolePage() {
                 if (queryInput) {
                   setQuery(queryInput);
                 }
-              }}
-            >
+              }}>
               Execute Query
             </Button>
           </S.CenteredGrid>

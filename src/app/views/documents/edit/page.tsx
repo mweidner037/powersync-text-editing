@@ -15,12 +15,7 @@ import './styles.css';
 const extensions = [Document, Paragraph, Text];
 const content = '<p>Hello World!</p>';
 
-/**
- * useSearchParams causes the entire element to fall back to client side rendering
- * This is exposed as a separate React component in order to suspend its render
- * and allow the root page to render on the server.
- */
-const TodoEditSection = () => {
+const DocumentEditSection = () => {
   const powerSync = usePowerSync();
   const supabase = useSupabase();
   const { id: listID } = useParams();
@@ -51,11 +46,11 @@ const TodoEditSection = () => {
   );
 };
 
-export default function TodoEditPage() {
+export default function DocumentEditPage() {
   return (
     <Box>
       <Suspense fallback={<CircularProgress />}>
-        <TodoEditSection />
+        <DocumentEditSection />
       </Suspense>
     </Box>
   );

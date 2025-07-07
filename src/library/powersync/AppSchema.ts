@@ -1,17 +1,17 @@
 import { column, Schema, Table } from '@powersync/web';
 
+// TODO: Rename 'documents'
 export const LISTS_TABLE = 'lists';
-export const TODOS_TABLE = 'todos';
+export const TEXT_UPDATES_TABLE = 'text_updates';
 
-const todos = new Table(
+const text_updates = new Table(
   {
     list_id: column.text,
     created_at: column.text,
-    completed_at: column.text,
-    description: column.text,
     created_by: column.text,
-    completed_by: column.text,
-    completed: column.integer
+    update: column.text,
+    // null for local (uncommitted) updates.
+    server_version: column.integer
   },
   { indexes: { list: ['list_id'] } }
 );
@@ -23,13 +23,11 @@ const lists = new Table({
 });
 
 export const AppSchema = new Schema({
-  todos,
+  text_updates,
   lists
 });
 
 export type Database = (typeof AppSchema)['types'];
-export type TodoRecord = Database['todos'];
-// OR:
-// export type Todo = RowType<typeof todos>;
 
+export type TextUpdateRecord = Database['text_updates'];
 export type ListRecord = Database['lists'];
