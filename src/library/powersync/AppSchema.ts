@@ -9,6 +9,7 @@ const text_updates = new Table(
     list_id: column.text,
     created_at: column.text,
     created_by: column.text,
+    // Note: This column name causes trouble (reserved word). Need to quote in queries ("update").
     update: column.text,
     // null for local (uncommitted) updates.
     server_version: column.integer
