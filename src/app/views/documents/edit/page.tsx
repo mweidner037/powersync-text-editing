@@ -7,14 +7,9 @@ import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { Paragraph } from '@tiptap/extension-paragraph';
-import Text from '@tiptap/extension-text';
-import Document from '@tiptap/extension-document';
 import './styles.css';
-import { useReducedTable } from '@/app/utils/use_reduced_table';
-
-const extensions = [Document, Paragraph, Text];
-const content = '<p>Hello World!</p>';
+import { useReducedTable } from '@/library/powersync/use_reduced_table';
+import { TIPTAP_EXTENSIONS } from '@/library/tiptap/extensions';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -62,8 +57,7 @@ const DocumentEditSection = () => {
   // Tiptap setup
 
   const editor = useEditor({
-    extensions,
-    content
+    extensions: TIPTAP_EXTENSIONS
   });
 
   // Render

@@ -1,4 +1,3 @@
-import { configureFts } from '@/app/utils/fts_setup';
 import { AppSchema } from '@/library/powersync/AppSchema';
 import { SupabaseConnector } from '@/library/powersync/SupabaseConnector';
 import { CircularProgress } from '@mui/material';
@@ -40,10 +39,6 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     connector.init();
-
-    // Demo using SQLite Full-Text Search with PowerSync.
-    // See https://docs.powersync.com/usage-examples/full-text-search for more details
-    configureFts();
 
     return () => l?.();
   }, [powerSync, connector]);

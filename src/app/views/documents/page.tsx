@@ -16,7 +16,6 @@ import React from 'react';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
-import { SearchBarWidget } from '@/components/widgets/SearchBarWidget';
 import { DocumentsWidget } from '@/components/widgets/DocumentsWidget';
 import { GuardBySync } from '@/components/widgets/GuardBySync';
 
@@ -53,7 +52,6 @@ export default function TodoListsPage() {
           <AddIcon />
         </S.FloatingActionButton>
         <Box>
-          <SearchBarWidget />
           <GuardBySync>
             <DocumentsWidget />
           </GuardBySync>
