@@ -26,14 +26,18 @@ const DocumentEditSection = () => {
     data: [listRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [listID]);
 
-  // TODO: Ordering the last NULL values by created_at/id works in causal order locally, even for multiple tabs,
-  // *unless* it's possible for the user's clock to go backwards.
-  // Need hybrid logical clock instead?
-  const { data: textUpdates } = useQuery<TextUpdateRecord>(
-    `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? ORDER BY server_version NULLS LAST, created_at, id`,
+  const { data: remoteRows } = useQuery<TextUpdateRecord>(
+    `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NOT NULL ORDER BY server_version`,
     [listID]
   );
-  console.log(textUpdates.map((update) => update.server_version));
+  const { data: localRowsText } = useQuery<{ id: string; data: string }>(
+    "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.list_id') = json_array('PUT',?,?) ORDER BY id",
+    [TEXT_UPDATES_TABLE, listID]
+  );
+  const localRows = localRowsText.map((row) => ({ id: row.id, ...JSON.parse(row.data) } as TextUpdateRecord));
+
+  const allRows = [...remoteRows, ...localRows];
+  console.log('All rows', allRows);
 
   // PowerSync mutations
 
@@ -51,6 +55,9 @@ const DocumentEditSection = () => {
                     (uuid(), datetime(), ?, ?, ?)`,
       [userID, "{ type: 'test' }", listID!]
     );
+  };
+  const clear = async () => {
+    await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE list_id = ?`, [listID!]);
   };
 
   // Tiptap setup
@@ -75,6 +82,8 @@ const DocumentEditSection = () => {
       <Box>
         <EditorContent editor={editor} />
         <Button onClick={testUpdate}>Test Update</Button>
+        <br />
+        <Button onClick={clear}>Clear</Button>
       </Box>
     </NavigationPage>
   );
