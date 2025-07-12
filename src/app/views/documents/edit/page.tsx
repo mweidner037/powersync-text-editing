@@ -10,7 +10,7 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import './styles.css';
 import { useReducedTable } from '@/library/powersync/use_reduced_table';
 import { TIPTAP_EXTENSIONS } from '@/library/tiptap/extensions';
-import { collabTiptapStepReducer } from '@/library/tiptap/reducer';
+import { CollabTiptapStep, collabTiptapStepReducer, updateToSteps } from '@/library/tiptap/step_converter';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -25,7 +25,7 @@ const DocumentEditSection = () => {
 
   // PowerSync mutations
 
-  const testUpdate = async () => {
+  const doUpdate = async (update: CollabTiptapStep[]) => {
     const userID = supabase?.currentSession?.user.id;
     if (!userID) {
       throw new Error(`Could not get user ID.`);
@@ -37,7 +37,7 @@ const DocumentEditSection = () => {
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
                     (uuid(), datetime(), ?, ?, ?)`,
-      [userID, JSON.stringify({ type: 'test' }), docID!]
+      [userID, JSON.stringify(update), docID!]
     );
   };
   const clear = async () => {
@@ -50,7 +50,11 @@ const DocumentEditSection = () => {
     extensions: TIPTAP_EXTENSIONS,
     // We update the editor's state each render with a tr, so turn this off
     // to prevent an infinite rerender loop.
-    shouldRerenderOnTransaction: false
+    shouldRerenderOnTransaction: false,
+    onUpdate({ transaction }) {
+      const steps = updateToSteps(transaction);
+      void doUpdate(steps);
+    }
   });
 
   // Render
@@ -68,8 +72,6 @@ const DocumentEditSection = () => {
       <Box>
         <EditorContent editor={editor} />
         {editor ? <EditorController docID={docID!} editor={editor} /> : null}
-        <Button onClick={testUpdate}>Test Update</Button>
-        <br />
         <Button onClick={clear}>Clear</Button>
       </Box>
     </NavigationPage>
