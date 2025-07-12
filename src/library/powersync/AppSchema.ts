@@ -6,7 +6,7 @@ export const TEXT_UPDATES_TABLE = 'text_updates';
 
 const text_updates = new Table(
   {
-    list_id: column.text,
+    doc_id: column.text,
     created_at: column.text,
     created_by: column.text,
     // Note: This column name causes trouble (reserved word). Need to quote in queries ("update").
@@ -14,7 +14,7 @@ const text_updates = new Table(
     // null for local (uncommitted) updates.
     server_version: column.integer
   },
-  { indexes: { list: ['list_id'] } }
+  { indexes: { list: ['doc_id'] } }
 );
 
 const lists = new Table({

@@ -27,7 +27,7 @@ export function DocumentsWidget(props: DocumentsWidgetProps) {
   const deleteList = async (id: string) => {
     await powerSync.writeTransaction(async (tx) => {
       // Delete associated todos
-      await tx.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE list_id = ?`, [id]);
+      await tx.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [id]);
       // Delete list record
       await tx.execute(`DELETE FROM ${LISTS_TABLE} WHERE id = ?`, [id]);
     });

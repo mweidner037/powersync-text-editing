@@ -20,7 +20,7 @@ export const SearchBarWidget: React.FC<any> = () => {
       const todoItemsSearchResults = await searchTable(value, 'todos');
       for (let i = 0; i < todoItemsSearchResults.length; i++) {
         const res = await powersync.get<ListRecord>(`SELECT * FROM ${LISTS_TABLE} WHERE id = ?`, [
-          todoItemsSearchResults[i]['list_id']
+          todoItemsSearchResults[i]['doc_id']
         ]);
         todoItemsSearchResults[i]['list_name'] = res.name;
       }
@@ -31,7 +31,7 @@ export const SearchBarWidget: React.FC<any> = () => {
         (result) => new SearchResult(result['id'], result['name'])
       );
       const formattedTodoItemsResults: SearchResult[] = todoItemsSearchResults.map((result) => {
-        return new SearchResult(result['list_id'], result['list_name'] ?? '', result['description']);
+        return new SearchResult(result['doc_id'], result['list_name'] ?? '', result['description']);
       });
       setSearchResults([...formattedTodoItemsResults, ...formattedListResults]);
     }

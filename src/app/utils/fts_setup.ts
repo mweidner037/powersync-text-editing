@@ -61,5 +61,5 @@ async function createFtsTable(tableName: string, columns: string[], tokenization
  */
 export async function configureFts(): Promise<void> {
   await createFtsTable('lists', ['name'], 'porter unicode61');
-  await createFtsTable('todos', ['description', 'list_id']);
+  await createFtsTable('todos', ['description', 'doc_id']);
 }

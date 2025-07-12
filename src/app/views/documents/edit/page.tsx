@@ -20,34 +20,34 @@ const DocumentEditSection = () => {
 
   const powerSync = usePowerSync();
   const supabase = useSupabase();
-  const { id: listID } = useParams();
+  const { id: docID } = useParams();
 
   const {
     data: [listRecord]
-  } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [listID]);
+  } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [docID]);
 
   const { data: textUpdates } = useQuery<TextUpdateRecord & { rowid: number }>(
     // TODO: In PowerSync itself, modify the text_updates view to include rowid?
     // Instead of making our own "view" here (the subquery).
     `SELECT * FROM 
-    (SELECT id, CAST(json_extract(data, '$.list_id') as TEXT) AS list_id, CAST(json_extract(data, '$.created_at') as TEXT) AS created_at, CAST(json_extract(data, '$.created_by') as TEXT) AS created_by, CAST(json_extract(data, '$.update') as TEXT) AS "update", CAST(json_extract(data, '$.server_version') as INTEGER) AS server_version, rowid FROM "ps_data__text_updates")
-    WHERE list_id=?
+    (SELECT id, CAST(json_extract(data, '$.doc_id') as TEXT) AS doc_id, CAST(json_extract(data, '$.created_at') as TEXT) AS created_at, CAST(json_extract(data, '$.created_by') as TEXT) AS created_by, CAST(json_extract(data, '$.update') as TEXT) AS "update", CAST(json_extract(data, '$.server_version') as INTEGER) AS server_version, rowid FROM "ps_data__text_updates")
+    WHERE doc_id=?
     ORDER BY server_version NULLS LAST, rowid`,
-    [listID]
+    [docID]
   );
   console.log(textUpdates);
 
   // const { data: remoteRows } = useQuery<TextUpdateRecord>(
-  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NOT NULL ORDER BY server_version`,
-  //   [listID]
+  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE doc_id=? AND server_version IS NOT NULL ORDER BY server_version`,
+  //   [docID]
   // );
   // const { data: localRows } = useQuery<TextUpdateRecord>(
-  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NULL ORDER BY ROWID`,
-  //   [listID]
+  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE doc_id=? AND server_version IS NULL ORDER BY ROWID`,
+  //   [docID]
   // );
   // const { data: localRowsText } = useQuery<{ id: string; data: string }>(
-  //   "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.list_id') = json_array('PUT',?,?) ORDER BY id",
-  //   [TEXT_UPDATES_TABLE, listID]
+  //   "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.doc_id') = json_array('PUT',?,?) ORDER BY id",
+  //   [TEXT_UPDATES_TABLE, docID]
   // );
   // const localRows = localRowsText.map((row) => ({ id: row.id, ...JSON.parse(row.data) } as TextUpdateRecord));
 
@@ -65,14 +65,14 @@ const DocumentEditSection = () => {
     await powerSync.execute(
       `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
-                    (id, created_at, created_by, "update", list_id)
+                    (id, created_at, created_by, "update", doc_id)
                 VALUES
                     (uuid(), datetime(), ?, ?, ?)`,
-      [userID, "{ type: 'test' }", listID!]
+      [userID, "{ type: 'test' }", docID!]
     );
   };
   const clear = async () => {
-    await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE list_id = ?`, [listID!]);
+    await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
   };
 
   // Tiptap setup
