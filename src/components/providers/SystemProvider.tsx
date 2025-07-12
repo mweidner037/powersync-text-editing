@@ -17,6 +17,9 @@ export const db = new PowerSyncDatabase({
   }
 });
 
+// @ts-ignore
+window.db = db;
+
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   const [connector] = React.useState(new SupabaseConnector());
   const [powerSync] = React.useState(db);
@@ -30,7 +33,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     powerSync.init();
     const l = connector.registerListener({
-      initialized: () => { },
+      initialized: () => {},
       sessionStarted: () => {
         powerSync.connect(connector);
       }

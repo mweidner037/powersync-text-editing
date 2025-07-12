@@ -26,18 +26,33 @@ const DocumentEditSection = () => {
     data: [listRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [listID]);
 
-  const { data: remoteRows } = useQuery<TextUpdateRecord>(
-    `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NOT NULL ORDER BY server_version`,
+  const { data: textUpdates } = useQuery<TextUpdateRecord & { rowid: number }>(
+    // TODO: In PowerSync itself, modify the text_updates view to include rowid?
+    // Instead of making our own "view" here (the subquery).
+    `SELECT * FROM 
+    (SELECT id, CAST(json_extract(data, '$.list_id') as TEXT) AS list_id, CAST(json_extract(data, '$.created_at') as TEXT) AS created_at, CAST(json_extract(data, '$.created_by') as TEXT) AS created_by, CAST(json_extract(data, '$.update') as TEXT) AS "update", CAST(json_extract(data, '$.server_version') as INTEGER) AS server_version, rowid FROM "ps_data__text_updates")
+    WHERE list_id=?
+    ORDER BY server_version NULLS LAST, rowid`,
     [listID]
   );
-  const { data: localRowsText } = useQuery<{ id: string; data: string }>(
-    "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.list_id') = json_array('PUT',?,?) ORDER BY id",
-    [TEXT_UPDATES_TABLE, listID]
-  );
-  const localRows = localRowsText.map((row) => ({ id: row.id, ...JSON.parse(row.data) } as TextUpdateRecord));
+  console.log(textUpdates);
 
-  const allRows = [...remoteRows, ...localRows];
-  console.log('All rows', allRows);
+  // const { data: remoteRows } = useQuery<TextUpdateRecord>(
+  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NOT NULL ORDER BY server_version`,
+  //   [listID]
+  // );
+  // const { data: localRows } = useQuery<TextUpdateRecord>(
+  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE list_id=? AND server_version IS NULL ORDER BY ROWID`,
+  //   [listID]
+  // );
+  // const { data: localRowsText } = useQuery<{ id: string; data: string }>(
+  //   "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.list_id') = json_array('PUT',?,?) ORDER BY id",
+  //   [TEXT_UPDATES_TABLE, listID]
+  // );
+  // const localRows = localRowsText.map((row) => ({ id: row.id, ...JSON.parse(row.data) } as TextUpdateRecord));
+
+  // const allRows = [...remoteRows, ...localRows];
+  // console.log('All rows', allRows);
 
   // PowerSync mutations
 
