@@ -4,13 +4,14 @@ import Fab from '@mui/material/Fab';
 import { Suspense } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
-import { LISTS_TABLE, TEXT_UPDATES_TABLE, TextUpdateRecord } from '@/library/powersync/AppSchema';
+import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { Paragraph } from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
 import Document from '@tiptap/extension-document';
 import './styles.css';
+import { useReducedTable } from '@/app/utils/use_reduced_table';
 
 const extensions = [Document, Paragraph, Text];
 const content = '<p>Hello World!</p>';
@@ -26,33 +27,16 @@ const DocumentEditSection = () => {
     data: [listRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [docID]);
 
-  const { data: textUpdates } = useQuery<TextUpdateRecord & { rowid: number }>(
-    // TODO: In PowerSync itself, modify the text_updates view to include rowid?
-    // Instead of making our own "view" here (the subquery).
-    `SELECT * FROM 
-    (SELECT id, CAST(json_extract(data, '$.doc_id') as TEXT) AS doc_id, CAST(json_extract(data, '$.created_at') as TEXT) AS created_at, CAST(json_extract(data, '$.created_by') as TEXT) AS created_by, CAST(json_extract(data, '$.update') as TEXT) AS "update", CAST(json_extract(data, '$.server_version') as INTEGER) AS server_version, rowid FROM "ps_data__text_updates")
-    WHERE doc_id=?
-    ORDER BY server_version NULLS LAST, rowid`,
-    [docID]
+  const textState = useReducedTable(
+    TEXT_UPDATES_TABLE,
+    docID!,
+    { remote: 0, local: 0 },
+    (current, _update, isCommitted) => {
+      if (isCommitted) current.remote++;
+      else current.local++;
+      return current;
+    }
   );
-  console.log(textUpdates);
-
-  // const { data: remoteRows } = useQuery<TextUpdateRecord>(
-  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE doc_id=? AND server_version IS NOT NULL ORDER BY server_version`,
-  //   [docID]
-  // );
-  // const { data: localRows } = useQuery<TextUpdateRecord>(
-  //   `SELECT * FROM ${TEXT_UPDATES_TABLE} WHERE doc_id=? AND server_version IS NULL ORDER BY ROWID`,
-  //   [docID]
-  // );
-  // const { data: localRowsText } = useQuery<{ id: string; data: string }>(
-  //   "SELECT json_extract(data, '$.id') AS id, json_extract(data, '$.data') AS data FROM ps_crud WHERE json_extract(data, '$.op', '$.type', '$.data.doc_id') = json_array('PUT',?,?) ORDER BY id",
-  //   [TEXT_UPDATES_TABLE, docID]
-  // );
-  // const localRows = localRowsText.map((row) => ({ id: row.id, ...JSON.parse(row.data) } as TextUpdateRecord));
-
-  // const allRows = [...remoteRows, ...localRows];
-  // console.log('All rows', allRows);
 
   // PowerSync mutations
 
@@ -68,7 +52,7 @@ const DocumentEditSection = () => {
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
                     (uuid(), datetime(), ?, ?, ?)`,
-      [userID, "{ type: 'test' }", docID!]
+      [userID, JSON.stringify({ type: 'test' }), docID!]
     );
   };
   const clear = async () => {
@@ -96,6 +80,10 @@ const DocumentEditSection = () => {
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
         <EditorContent editor={editor} />
+        Committed updates: {textState.remote}
+        <br />
+        Local updates: {textState.local}
+        <br />
         <Button onClick={testUpdate}>Test Update</Button>
         <br />
         <Button onClick={clear}>Clear</Button>
