@@ -6,10 +6,11 @@ import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import './styles.css';
 import { useReducedTable } from '@/library/powersync/use_reduced_table';
 import { TIPTAP_EXTENSIONS } from '@/library/tiptap/extensions';
+import { collabTiptapStepReducer } from '@/library/tiptap/reducer';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -21,17 +22,6 @@ const DocumentEditSection = () => {
   const {
     data: [listRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [docID]);
-
-  const textState = useReducedTable(
-    TEXT_UPDATES_TABLE,
-    docID!,
-    { remote: 0, local: 0 },
-    (current, _update, isCommitted) => {
-      if (isCommitted) current.remote++;
-      else current.local++;
-      return current;
-    }
-  );
 
   // PowerSync mutations
 
@@ -57,7 +47,10 @@ const DocumentEditSection = () => {
   // Tiptap setup
 
   const editor = useEditor({
-    extensions: TIPTAP_EXTENSIONS
+    extensions: TIPTAP_EXTENSIONS,
+    // We update the editor's state each render with a tr, so turn this off
+    // to prevent an infinite rerender loop.
+    shouldRerenderOnTransaction: false
   });
 
   // Render
@@ -74,10 +67,7 @@ const DocumentEditSection = () => {
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
         <EditorContent editor={editor} />
-        Committed updates: {textState.remote}
-        <br />
-        Local updates: {textState.local}
-        <br />
+        {editor ? <EditorController docID={docID!} editor={editor} /> : null}
         <Button onClick={testUpdate}>Test Update</Button>
         <br />
         <Button onClick={clear}>Clear</Button>
@@ -85,6 +75,19 @@ const DocumentEditSection = () => {
     </NavigationPage>
   );
 };
+
+function EditorController({ docID, editor }: { docID: string; editor: Editor }) {
+  // Replace the editor's state with that indicated by TEXT_UPDATES_TABLE,
+  // preserving the selection (TODO).
+  const tr = editor.state.tr;
+  tr.delete(0, tr.doc.content.size);
+  useReducedTable(TEXT_UPDATES_TABLE, docID, tr, collabTiptapStepReducer);
+
+  editor.view.updateState(editor.state.apply(tr));
+
+  // Not a real component, just a wrapper for hooks.
+  return null;
+}
 
 export default function DocumentEditPage() {
   return (
