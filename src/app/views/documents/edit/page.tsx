@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useRef, memo } from 'react';
+import { MutableRefObject, Suspense, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -17,7 +17,7 @@ import {
   updateToSteps
 } from '@/library/tiptap/step_converter';
 import { IdList } from 'articulated';
-import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
+import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -32,6 +32,7 @@ const DocumentEditSection = () => {
 
   // PowerSync mutations
 
+  const lastLocalId = useRef<string | null>(null);
   const doUpdate = async (update: CollabTiptapStep[]) => {
     const userID = supabase?.currentSession?.user.id;
     if (!userID) {
@@ -39,19 +40,27 @@ const DocumentEditSection = () => {
     }
 
     console.log('START UPDATE');
-    await powerSync.execute(
+    const result = await powerSync.execute(
       `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
-                    (uuid(), datetime(), ?, ?, ?)`,
+                    (uuid(), datetime(), ?, ?, ?)
+                RETURNING id`,
       [userID, JSON.stringify(update), docID!]
     );
-    console.log('END UPDATE');
+    lastLocalId.current = result.rows!.item(0).id;
+    console.log('END UPDATE', result.rows!.item(0).id);
   };
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
   };
+
+  const queryForLastInsert = useQuery(`SELECT id FROM ps_data__${TEXT_UPDATES_TABLE} WHERE id=?`, [
+    lastLocalId.current
+  ]);
+  const hasLastInsert = lastLocalId.current === null ? true : queryForLastInsert.data.length > 0;
+  console.log('Last local ID', lastLocalId.current, hasLastInsert);
 
   // Tiptap setup
 
@@ -86,7 +95,9 @@ const DocumentEditSection = () => {
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
         <EditorContent editor={editor} />
-        {editor ? <EditorController key={docID} docID={docID!} editor={editor} idListRef={idListRef} /> : null}
+        {editor && hasLastInsert ? (
+          <EditorController key={docID} docID={docID!} editor={editor} idListRef={idListRef} />
+        ) : null}
         <Button onClick={clear}>Clear</Button>
       </Box>
     </NavigationPage>
@@ -96,7 +107,7 @@ const DocumentEditSection = () => {
 // Make this a pure component so it *only* re-renders when the query changes.
 // TODO: This is still re-rendering too soon, so that the reduced state is behind the
 // editor's internal state - causing issues with selection restoration.
-const EditorController = memo(function EditorController({
+function EditorController({
   docID,
   editor,
   idListRef
@@ -112,7 +123,12 @@ const EditorController = memo(function EditorController({
 
   // - Store the current selection in terms of IdList ids.
   // Except, skip on the first render (when idListRef is null), to prevent errors.
-  const idSel = idListRef.current ? selectionToIds(editor.view.state, idListRef.current) : null;
+  let idSel: IdSelection | null = null;
+  try {
+    idSel = idListRef.current ? selectionToIds(editor.view.state, idListRef.current) : null;
+  } catch (error) {
+    console.error(error);
+  }
 
   // - Reset the state, since we (re-)apply all updates below.
   const tr = editor.state.tr;
@@ -139,7 +155,7 @@ const EditorController = memo(function EditorController({
 
   // Not a real component, just a wrapper for hooks.
   return null;
-});
+}
 
 export default function DocumentEditPage() {
   return (
