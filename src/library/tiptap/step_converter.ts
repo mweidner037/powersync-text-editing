@@ -32,7 +32,11 @@ export function collabTiptapStepReducer(
   return { tr, idList };
 }
 
-export function updateToSteps(tr: Transaction, idList: IdList, idGen: ElementIdGenerator): CollabTiptapStep[] {
+export function updateToSteps(
+  tr: Transaction,
+  idList: IdList,
+  idGen: ElementIdGenerator
+): [steps: CollabTiptapStep[], idList: IdList] {
   console.log('steps', idList.length, tr.doc.content.size);
   const collabSteps: CollabTiptapStep[] = [];
 
@@ -53,11 +57,7 @@ export function updateToSteps(tr: Transaction, idList: IdList, idGen: ElementIdG
     }
   }
 
-  // idList is just updated for our internal use when generating steps.
-  // We don't return it; instead, collabTiptapStepReducer will compute
-  // the same state when reducing over the steps.
-
-  return collabSteps;
+  return [collabSteps, idList];
 }
 
 // TODO: Move to articulated?

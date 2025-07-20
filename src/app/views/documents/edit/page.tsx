@@ -54,17 +54,18 @@ const DocumentEditSection = () => {
   // Tiptap setup
 
   const idListRef = useRef<IdList | null>(null);
-  const idGenRef = useRef<ElementIdGenerator | null>(null);
-  if (idGenRef.current === null) {
-    idGenRef.current = new ElementIdGenerator();
-  }
+  const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator());
   const editor = useEditor({
     extensions: TIPTAP_EXTENSIONS,
     // We update the editor's state each render with a tr, so turn this off
     // to prevent an infinite rerender loop.
     shouldRerenderOnTransaction: false,
     onUpdate({ transaction }) {
-      const steps = updateToSteps(transaction, idListRef.current!, idGenRef.current!);
+      const [steps, newIdList] = updateToSteps(transaction, idListRef.current!, idGenRef.current);
+      // We need to set this now so that it matches the editor's state (which functions like a ref).
+      // That's needed for selectionToIds to work in the next render.
+      idListRef.current = newIdList;
+
       void doUpdate(steps);
     }
   });
@@ -99,19 +100,21 @@ function EditorController({
   editor: Editor;
   idListRef: MutableRefObject<IdList | null>;
 }) {
-  if (idListRef.current === null) {
-    // On first render, initialize idListRef to match the editor's initial state.
-    const initialSize = editor.state.doc.content.size;
-    idListRef.current = IdList.new().insertAfter(null, { bunchId: 'init', counter: 0 }, initialSize);
-  }
-  console.log('sel', idListRef.current.length, editor.state.selection);
+  // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE,
+  // and update idListRef to match.
+  // Except, preserve the selection in a collaboration-aware way using IdList.
 
-  // Replace the editor's state with that indicated by TEXT_UPDATES_TABLE,
-  // preserving the selection.
-  const idSel = selectionToIds(editor.view.state, idListRef.current);
+  // - Store the current selection in terms of IdList ids.
+  // Except, skip on the first render (when idListRef is null), to prevent errors.
+  const idSel = idListRef.current ? selectionToIds(editor.view.state, idListRef.current) : null;
+
+  // - Reset the state, since we (re-)apply all updates below.
   const tr = editor.state.tr;
   tr.delete(0, tr.doc.content.size);
-  // Updates tr in-place.
+  const initialSize = tr.doc.content.size;
+  idListRef.current = IdList.new().insertAfter(null, { bunchId: 'init', counter: 0 }, initialSize);
+
+  // - Apply all updates to tr and idListRef.
   const reducedResult = useReducedTable(
     TEXT_UPDATES_TABLE,
     docID,
@@ -119,10 +122,14 @@ function EditorController({
     collabTiptapStepReducer
   );
   idListRef.current = reducedResult.idList;
-  // Restore selection.
-  tr.setSelection(selectionFromIds(idSel, tr.doc, idListRef.current));
+
+  // - Restore the current selection.
+  if (idSel) {
+    tr.setSelection(selectionFromIds(idSel, tr.doc, idListRef.current));
+  }
+
+  // - Update the editor. idListRef has already been updated.
   editor.view.updateState(editor.state.apply(tr));
-  idListRef.current = reducedResult.idList;
 
   // Not a real component, just a wrapper for hooks.
   return null;
