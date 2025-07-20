@@ -66,7 +66,7 @@ const DocumentEditSection = () => {
       // That's needed for selectionToIds to work in the next render.
       idListRef.current = newIdList;
 
-      void doUpdate(steps);
+      if (steps.length > 0) void doUpdate(steps);
     }
   });
 
