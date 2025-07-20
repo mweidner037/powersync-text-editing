@@ -14,6 +14,7 @@ export function collabTiptapStepReducer(
   { tr, idList }: { tr: Transaction; idList: IdList },
   update: CollabTiptapStep[]
 ): { tr: Transaction; idList: IdList } {
+  console.log('  update', update);
   const schema = tr.doc.type.schema;
 
   for (const step of update) {

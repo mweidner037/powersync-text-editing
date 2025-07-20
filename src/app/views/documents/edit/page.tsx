@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useRef } from 'react';
+import { MutableRefObject, Suspense, useRef, memo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -38,6 +38,7 @@ const DocumentEditSection = () => {
       throw new Error(`Could not get user ID.`);
     }
 
+    console.log('START UPDATE');
     await powerSync.execute(
       `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
@@ -46,6 +47,7 @@ const DocumentEditSection = () => {
                     (uuid(), datetime(), ?, ?, ?)`,
       [userID, JSON.stringify(update), docID!]
     );
+    console.log('END UPDATE');
   };
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
@@ -91,7 +93,10 @@ const DocumentEditSection = () => {
   );
 };
 
-function EditorController({
+// Make this a pure component so it *only* re-renders when the query changes.
+// TODO: This is still re-rendering too soon, so that the reduced state is behind the
+// editor's internal state - causing issues with selection restoration.
+const EditorController = memo(function EditorController({
   docID,
   editor,
   idListRef
@@ -100,6 +105,7 @@ function EditorController({
   editor: Editor;
   idListRef: MutableRefObject<IdList | null>;
 }) {
+  console.log('render');
   // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE,
   // and update idListRef to match.
   // Except, preserve the selection in a collaboration-aware way using IdList.
@@ -133,7 +139,7 @@ function EditorController({
 
   // Not a real component, just a wrapper for hooks.
   return null;
-}
+});
 
 export default function DocumentEditPage() {
   return (
