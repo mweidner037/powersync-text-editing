@@ -18,6 +18,7 @@ import {
 } from '@/library/tiptap/step_converter';
 import { IdList } from 'articulated';
 import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
+import { TextSelection } from '@tiptap/pm/state';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -62,7 +63,8 @@ const DocumentEditSection = () => {
     shouldRerenderOnTransaction: false,
     onUpdate({ transaction }) {
       const [steps, newIdList] = updateToSteps(transaction, idListRef.current!, idGenRef.current);
-      // We need to set this now so that it matches the editor's state (which functions like a ref).
+      console.log('onUpdate', idListRef.current!.length, newIdList.length);
+      // We need to set this now so that it matches the editor's state (which acts like a useRef<EditorState>).
       // That's needed for selectionToIds to work in the next render.
       idListRef.current = newIdList;
 
@@ -113,16 +115,15 @@ function EditorController({
   const tr = editor.state.tr;
   tr.delete(0, tr.doc.content.size);
   const initialSize = tr.doc.content.size;
-  idListRef.current = IdList.new().insertAfter(null, { bunchId: 'init', counter: 0 }, initialSize);
+  const initialIdList = IdList.new().insertAfter(null, { bunchId: 'init', counter: 0 }, initialSize);
 
   // - Apply all updates to tr and idListRef.
   const { data: reducedResult, isFetching } = useReducedTable(
     TEXT_UPDATES_TABLE,
     docID,
-    { tr, idList: idListRef.current },
+    { tr, idList: initialIdList },
     collabTiptapStepReducer
   );
-  idListRef.current = reducedResult.idList;
 
   if (isFetching) {
     // When we perform a local update, there are a few renders right afterwards
@@ -137,11 +138,18 @@ function EditorController({
   if (startingIdList) {
     const startingSelection = editor.state.selection;
     const idSelection = selectionToIds(startingSelection, startingIdList);
-    tr.setSelection(selectionFromIds(idSelection, tr.doc, idListRef.current));
+    try {
+      tr.setSelection(selectionFromIds(idSelection, tr.doc, reducedResult.idList));
+    } catch (error) {
+      // This can happen naturally if the state goes backwards somehow. Clear the selection and don't crash.
+      tr.setSelection(TextSelection.create(tr.doc, 0));
+      console.error('Error restoring selection', error);
+    }
   }
 
-  // - Update the editor. idListRef has already been updated.
+  // - Update the editor and corresponding idListRef.
   editor.view.updateState(editor.state.apply(tr));
+  idListRef.current = reducedResult.idList;
 
   // Not a real component, just a wrapper for hooks.
   return null;
