@@ -33,20 +33,27 @@ const DocumentEditSection = () => {
 
   // PowerSync mutations
 
+  const pendingUpdateCounterRef = useRef(0);
+
   const doUpdate = async (update: CollabTiptapStep[]) => {
     const userID = supabase?.currentSession?.user.id;
     if (!userID) {
       throw new Error(`Could not get user ID.`);
     }
 
-    await powerSync.execute(
-      `INSERT INTO
+    pendingUpdateCounterRef.current++;
+    try {
+      await powerSync.execute(
+        `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
                     (uuid(), datetime(), ?, ?, ?)`,
-      [userID, JSON.stringify(update), docID!]
-    );
+        [userID, JSON.stringify(update), docID!]
+      );
+    } finally {
+      pendingUpdateCounterRef.current--;
+    }
   };
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
@@ -63,7 +70,6 @@ const DocumentEditSection = () => {
     shouldRerenderOnTransaction: false,
     onUpdate({ transaction }) {
       const [steps, newIdList] = updateToSteps(transaction, idListRef.current!, idGenRef.current);
-      console.log('onUpdate', idListRef.current!.length, newIdList.length);
       // We need to set this now so that it matches the editor's state (which acts like a useRef<EditorState>).
       // That's needed for selectionToIds to work in the next render.
       idListRef.current = newIdList;
@@ -86,7 +92,15 @@ const DocumentEditSection = () => {
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
         <EditorContent editor={editor} />
-        {editor ? <EditorController key={docID} docID={docID!} editor={editor} idListRef={idListRef} /> : null}
+        {editor ? (
+          <EditorController
+            key={docID}
+            docID={docID!}
+            editor={editor}
+            idListRef={idListRef}
+            pendingUpdateCounterRef={pendingUpdateCounterRef}
+          />
+        ) : null}
         <Button onClick={clear}>Clear</Button>
       </Box>
     </NavigationPage>
@@ -99,11 +113,13 @@ const DocumentEditSection = () => {
 function EditorController({
   docID,
   editor,
-  idListRef
+  idListRef,
+  pendingUpdateCounterRef
 }: {
   docID: string;
   editor: Editor;
   idListRef: MutableRefObject<IdList | null>;
+  pendingUpdateCounterRef: MutableRefObject<number>;
 }) {
   // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE,
   // and update idListRef to match.
@@ -125,11 +141,14 @@ function EditorController({
     collabTiptapStepReducer
   );
 
-  if (isFetching) {
-    // When we perform a local update, there are a few renders right afterwards
-    // that don't include the new local update and that have isFetching = true.
-    // We need to ignore these since the reduced state is "behind" the current editor state,
-    // hence the restore-selection code would fail (and it would look weird to users).
+  if (isFetching || pendingUpdateCounterRef.current > 0) {
+    // After performing a local update, we need to wait for the reduced state to be at least
+    // as up-to-date before touching the editor.
+    // Otherwise, the editor's state goes backwards, potentially causing jitter
+    // and also confusing our restore-selection code.
+    // Empirically, the reduced state is updated once:
+    // - All of the pending powerSync.execute promises have resolved, and
+    // - isFetching is false.
     return null;
   }
 

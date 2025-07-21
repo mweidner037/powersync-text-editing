@@ -33,7 +33,5 @@ export function useReducedTable<S, U>(
     state = reducer(state, updateObj, updateRow.is_committed !== 0);
   }
 
-  console.log('useReducedTable', updateRows.length, isFetching);
-
   return { data: state, isFetching };
 }

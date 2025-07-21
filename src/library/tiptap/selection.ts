@@ -25,7 +25,6 @@ export function selectionToIds(selection: Selection, idList: IdList): IdSelectio
   if (selection instanceof AllSelection) {
     return { type: 'all' };
   } else if (selection.to === selection.from) {
-    console.log('->', selection.from, idList.length);
     return { type: 'cursor', id: selection.from === 0 ? null : idList.at(selection.from - 1) };
   } else if (selection instanceof TextSelection) {
     const { from, to, anchor, head } = selection;
@@ -47,7 +46,6 @@ export function selectionFromIds(idSel: IdSelection, doc: Node, idList: IdList):
       return new AllSelection(doc);
     case 'cursor':
       const pos = idSel.id === null ? 0 : idList.indexOf(idSel.id, 'left') + 1;
-      console.log('<-', pos, idList.length);
       return Selection.near(doc.resolve(pos));
     case 'textRange':
       const from = idList.indexOf(idSel.start, 'right');
