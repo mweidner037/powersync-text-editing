@@ -17,7 +17,7 @@ import {
   updateToSteps
 } from '@/library/tiptap/step_converter';
 import { IdList } from 'articulated';
-import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
+import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -32,35 +32,24 @@ const DocumentEditSection = () => {
 
   // PowerSync mutations
 
-  const lastLocalId = useRef<string | null>(null);
   const doUpdate = async (update: CollabTiptapStep[]) => {
     const userID = supabase?.currentSession?.user.id;
     if (!userID) {
       throw new Error(`Could not get user ID.`);
     }
 
-    console.log('START UPDATE');
-    const result = await powerSync.execute(
+    await powerSync.execute(
       `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
-                    (uuid(), datetime(), ?, ?, ?)
-                RETURNING id`,
+                    (uuid(), datetime(), ?, ?, ?)`,
       [userID, JSON.stringify(update), docID!]
     );
-    lastLocalId.current = result.rows!.item(0).id;
-    console.log('END UPDATE', result.rows!.item(0).id);
   };
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
   };
-
-  const queryForLastInsert = useQuery(`SELECT id FROM ps_data__${TEXT_UPDATES_TABLE} WHERE id=?`, [
-    lastLocalId.current
-  ]);
-  const hasLastInsert = lastLocalId.current === null ? true : queryForLastInsert.data.length > 0;
-  console.log('Last local ID', lastLocalId.current, hasLastInsert);
 
   // Tiptap setup
 
@@ -95,9 +84,7 @@ const DocumentEditSection = () => {
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
         <EditorContent editor={editor} />
-        {editor && hasLastInsert ? (
-          <EditorController key={docID} docID={docID!} editor={editor} idListRef={idListRef} />
-        ) : null}
+        {editor ? <EditorController key={docID} docID={docID!} editor={editor} idListRef={idListRef} /> : null}
         <Button onClick={clear}>Clear</Button>
       </Box>
     </NavigationPage>
@@ -116,19 +103,11 @@ function EditorController({
   editor: Editor;
   idListRef: MutableRefObject<IdList | null>;
 }) {
-  console.log('render');
   // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE,
   // and update idListRef to match.
   // Except, preserve the selection in a collaboration-aware way using IdList.
 
-  // - Store the current selection in terms of IdList ids.
-  // Except, skip on the first render (when idListRef is null), to prevent errors.
-  let idSel: IdSelection | null = null;
-  try {
-    idSel = idListRef.current ? selectionToIds(editor.view.state, idListRef.current) : null;
-  } catch (error) {
-    console.error(error);
-  }
+  const startingIdList = idListRef.current;
 
   // - Reset the state, since we (re-)apply all updates below.
   const tr = editor.state.tr;
@@ -137,7 +116,7 @@ function EditorController({
   idListRef.current = IdList.new().insertAfter(null, { bunchId: 'init', counter: 0 }, initialSize);
 
   // - Apply all updates to tr and idListRef.
-  const reducedResult = useReducedTable(
+  const { data: reducedResult, isFetching } = useReducedTable(
     TEXT_UPDATES_TABLE,
     docID,
     { tr, idList: idListRef.current },
@@ -145,9 +124,20 @@ function EditorController({
   );
   idListRef.current = reducedResult.idList;
 
-  // - Restore the current selection.
-  if (idSel) {
-    tr.setSelection(selectionFromIds(idSel, tr.doc, idListRef.current));
+  if (isFetching) {
+    // When we perform a local update, there are a few renders right afterwards
+    // that don't include the new local update and that have isFetching = true.
+    // We need to ignore these since the reduced state is "behind" the current editor state,
+    // hence the restore-selection code would fail (and it would look weird to users).
+    return null;
+  }
+
+  // - Restore the starting selection in a collaboration-aware way.
+  // We do this by converting the initial selection to ElementIds and back.
+  if (startingIdList) {
+    const startingSelection = editor.state.selection;
+    const idSelection = selectionToIds(startingSelection, startingIdList);
+    tr.setSelection(selectionFromIds(idSelection, tr.doc, idListRef.current));
   }
 
   // - Update the editor. idListRef has already been updated.

@@ -14,8 +14,8 @@ export function useReducedTable<S, U>(
   docId: string,
   initialState: S,
   reducer: (current: S, update: U, isCommitted: boolean) => S
-): S {
-  const { data: updateRows } = useQuery<{ update: string; is_committed: number }>(
+): { data: S; isFetching: boolean } {
+  const { data: updateRows, isFetching } = useQuery<{ update: string; is_committed: number }>(
     `
     SELECT "update", (server_version IS NOT NULL) as is_committed FROM
     (
@@ -33,5 +33,7 @@ export function useReducedTable<S, U>(
     state = reducer(state, updateObj, updateRow.is_committed !== 0);
   }
 
-  return state;
+  console.log('useReducedTable', updateRows.length, isFetching);
+
+  return { data: state, isFetching };
 }

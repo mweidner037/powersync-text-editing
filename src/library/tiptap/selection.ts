@@ -1,4 +1,4 @@
-import { EditorState, AllSelection, TextSelection, Selection } from '@tiptap/pm/state';
+import { AllSelection, TextSelection, Selection } from '@tiptap/pm/state';
 import { Node } from '@tiptap/pm/model';
 import { ElementId, IdList } from 'articulated';
 
@@ -21,13 +21,13 @@ export type IdSelection =
     }
   | { type: 'unsupported' };
 
-export function selectionToIds(state: EditorState, idList: IdList): IdSelection {
-  if (state.selection instanceof AllSelection) {
+export function selectionToIds(selection: Selection, idList: IdList): IdSelection {
+  if (selection instanceof AllSelection) {
     return { type: 'all' };
-  } else if (state.selection.to === state.selection.from) {
-    return { type: 'cursor', id: state.selection.from === 0 ? null : idList.at(state.selection.from - 1) };
-  } else if (state.selection instanceof TextSelection) {
-    const { from, to, anchor, head } = state.selection;
+  } else if (selection.to === selection.from) {
+    return { type: 'cursor', id: selection.from === 0 ? null : idList.at(selection.from - 1) };
+  } else if (selection instanceof TextSelection) {
+    const { from, to, anchor, head } = selection;
     return {
       type: 'textRange',
       start: idList.at(from),
@@ -35,7 +35,7 @@ export function selectionToIds(state: EditorState, idList: IdList): IdSelection 
       forwards: head > anchor
     };
   } else {
-    console.error('Unsupported selection:', state.selection);
+    console.error('Unsupported selection:', selection);
     return { type: 'unsupported' };
   }
 }

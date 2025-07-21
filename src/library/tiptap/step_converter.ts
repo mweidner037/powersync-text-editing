@@ -14,7 +14,6 @@ export function collabTiptapStepReducer(
   { tr, idList }: { tr: Transaction; idList: IdList },
   update: CollabTiptapStep[]
 ): { tr: Transaction; idList: IdList } {
-  console.log('  update', update);
   const schema = tr.doc.type.schema;
 
   for (const step of update) {
@@ -44,8 +43,6 @@ export function updateToSteps(
 ): [steps: CollabTiptapStep[], idList: IdList] {
   // Fast exit for e.g. selection changes.
   if (!tr.docChanged) return [[], idList];
-
-  console.log('updateToSteps', tr.docs[0], tr.steps);
 
   const collabSteps: CollabTiptapStep[] = [];
 
@@ -79,8 +76,6 @@ export function updateToSteps(
       );
     }
   }
-
-  console.log('  after', tr.doc, collabSteps);
 
   return [collabSteps, idList];
 }
