@@ -70,5 +70,8 @@ export default defineConfig({
   worker: {
     format: 'es',
     plugins: () => [wasm(), topLevelAwait()]
+  },
+  preview: {
+    allowedHosts: true
   }
 });
