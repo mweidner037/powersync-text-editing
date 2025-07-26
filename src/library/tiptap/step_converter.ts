@@ -17,6 +17,8 @@ import { ElementId, IdList } from 'articulated';
 // will mess up our IdList values.
 // For other steps, I guess it is okay to let PM patch things up, but still avoid errors from e.g. invalid node types?
 // Compare step.apply to closest Transaction method.
+// TODO: For ReplaceStep, prioritize the current format unless explicitly overridden,
+// so that text concurrent to insertion does the expected thing in either insertion order.
 
 export type CollabTiptapStep =
   | {
@@ -54,6 +56,7 @@ export type CollabTiptapStep =
   | {
       /** AddMarkStep or RemoveMarkStep. */
       type: 'changeMark';
+      /** Inclusive. */
       fromId: ElementId;
       /** If the mark is inclusive, this is the exclusive end of the range, else the inclusive end. */
       toId: ElementId | null;
@@ -125,7 +128,7 @@ export function collabTiptapStepReducer(
         const from = idList.indexOf(step.fromId, 'right');
         const to = inclusive
           ? step.toId === null
-            ? tr.doc.nodeSize
+            ? tr.doc.content.size
             : idList.indexOf(step.toId, 'right')
           : idList.indexOf(step.toId!, 'left') + 1;
         // TODO: Expand to beginning of paragraph if inclusive.
@@ -227,7 +230,7 @@ export function updateToSteps(
       const inclusive = step.mark.type.spec.inclusive ?? true;
       const fromId = idList.at(step.from);
       const toId = inclusive
-        ? step.to === docBeforeStep.nodeSize - 1
+        ? step.to === docBeforeStep.content.size - 1
           ? null
           : idList.at(step.to + 1)
         : idList.at(step.to);
