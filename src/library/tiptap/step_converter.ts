@@ -12,7 +12,11 @@ import {
 } from '@tiptap/pm/transform';
 import { ElementId, IdList } from 'articulated';
 
-// TODO: can/maybe checks, especially fro replace/aroundstep.
+// TODO: can/maybe checks, especially for replace/aroundstep. If failed, still add deleted IDs to IdList.
+// TODO: For replace/around, use raw steps instead of tr. methods, so that they are not doing extra work that
+// will mess up our IdList values.
+// For other steps, I guess it is okay to let PM patch things up, but still avoid errors from e.g. invalid node types?
+// Compare step.apply to closest Transaction method.
 
 export type CollabTiptapStep =
   | {
