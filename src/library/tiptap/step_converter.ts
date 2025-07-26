@@ -1,6 +1,15 @@
 import { Mark, Slice } from '@tiptap/pm/model';
 import { Transaction } from '@tiptap/pm/state';
-import { AddMarkStep, AddNodeMarkStep, RemoveMarkStep, RemoveNodeMarkStep, ReplaceStep } from '@tiptap/pm/transform';
+import {
+  AddMarkStep,
+  AddNodeMarkStep,
+  AttrStep,
+  DocAttrStep,
+  RemoveMarkStep,
+  RemoveNodeMarkStep,
+  ReplaceStep,
+  Step
+} from '@tiptap/pm/transform';
 import { ElementId, IdList } from 'articulated';
 
 // TODO: can/maybe checks, especially fro replace/aroundstep.
@@ -39,7 +48,7 @@ export type CollabTiptapStep =
       // TODO: step.structure?
     }
   | {
-      /** AddMark or RemoveMark step. */
+      /** AddMarkStep or RemoveMarkStep. */
       type: 'changeMark';
       fromId: ElementId;
       /** If the mark is inclusive, this is the exclusive end of the range, else the inclusive end. */
@@ -48,11 +57,23 @@ export type CollabTiptapStep =
       isAdd: boolean;
     }
   | {
-      /** AddNodeMark or RemoveNodeMark step. */
+      /** AddNodeMarkStep or RemoveNodeMarkStep. */
       type: 'changeNodeMark';
       id: ElementId;
       mark: object;
       isAdd: boolean;
+    }
+  | {
+      /** AttrStep. */
+      type: 'nodeAttr';
+      id: ElementId;
+      attr: string;
+      value: unknown;
+    }
+  | {
+      /** DocAttrStep. */
+      type: 'docAttr';
+      step: object;
     };
 
 export function collabTiptapStepReducer(
@@ -115,9 +136,23 @@ export function collabTiptapStepReducer(
         if (pos === -1) continue;
         // None of our mutations change the node at an ElementId, so pos should contain
         // "the same" node that was targeted originally.
+        // TODO: This could change if we implement ReplaceAroundStep in a certain way.
         const mark = Mark.fromJSON(schema, step.mark);
         if (step.isAdd) tr.addNodeMark(pos, mark);
         else tr.removeNodeMark(pos, mark);
+        break;
+      }
+      case 'nodeAttr': {
+        const pos = idList.indexOf(step.id);
+        if (pos === -1) continue;
+        // None of our mutations change the node at an ElementId, so pos should contain
+        // "the same" node that was targeted originally.
+        tr.setNodeAttribute(pos, step.attr, step.value);
+        break;
+      }
+      case 'docAttr': {
+        const pmStep = Step.fromJSON(schema, step.step);
+        tr.step(pmStep);
         break;
       }
       default:
@@ -207,6 +242,19 @@ export function updateToSteps(
         id,
         mark: step.mark.toJSON(),
         isAdd
+      });
+    } else if (step instanceof AttrStep) {
+      const id = idList.at(step.pos);
+      collabSteps.push({
+        type: 'nodeAttr',
+        id,
+        attr: step.attr,
+        value: step.value
+      });
+    } else if (step instanceof DocAttrStep) {
+      collabSteps.push({
+        type: 'docAttr',
+        step: step.toJSON()
       });
     } else {
       console.error('Unknown ProseMirror step type, skipping:', step);
