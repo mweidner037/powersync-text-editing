@@ -19,6 +19,8 @@ import { ElementId, IdList } from 'articulated';
 // Compare step.apply to closest Transaction method.
 // TODO: For ReplaceStep, prioritize the current format unless explicitly overridden,
 // so that text concurrent to insertion does the expected thing in either insertion order.
+// TODO: If an inclusive selection went to the beginning of a paragraph, still do that
+// if the paragraph grew concurrently. Both orders (mark then text, text then mark).
 
 export type CollabTiptapStep =
   | {
@@ -95,8 +97,12 @@ export function collabTiptapStepReducer(
         const pos = step.beforeId === null ? 0 : idList.indexOf(step.beforeId, 'left') + 1;
         const slice = Slice.fromJSON(schema, step.slice);
 
-        tr.replace(pos, pos, slice);
-        idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
+        const pmStep = new ReplaceStep(pos, pos, slice);
+        if (tr.maybeStep(pmStep)) {
+          idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
+        } else {
+          console.log('Rebased insert failed, skipping');
+        }
         break;
       }
       case 'replace': {
@@ -106,18 +112,24 @@ export function collabTiptapStepReducer(
         const slice = step.insert === undefined ? undefined : Slice.fromJSON(schema, step.insert.slice);
 
         if (from <= toIncl) {
-          // TODO: Use replaceRange instead? Adds some rebasing niceness.
-          // Need to ensure idList updates likewise (deletes same range).
-          tr.replace(from, toIncl + 1, slice);
-          idList = deleteRange(idList, from, toIncl);
-          if (step.insert) {
-            idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+          const pmStep = new ReplaceStep(from, toIncl + 1, slice || Slice.empty);
+          if (tr.maybeStep(pmStep)) {
+            idList = deleteRange(idList, from, toIncl);
+            if (step.insert) {
+              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+            }
+          } else {
+            console.log('Rebased replace failed, skipping');
           }
         } else {
           // This happens if the whole range was already deleted (due to the left/right bias).
           if (step.insert) {
-            tr.replace(from, from, slice);
-            idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+            const pmStep = new ReplaceStep(from, from, slice!);
+            if (tr.maybeStep(pmStep)) {
+              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+            } else {
+              console.log('Rebased replace(2) failed, skipping');
+            }
           }
         }
         break;
@@ -131,7 +143,6 @@ export function collabTiptapStepReducer(
             ? tr.doc.content.size
             : idList.indexOf(step.toId, 'right')
           : idList.indexOf(step.toId!, 'left') + 1;
-        // TODO: Expand to beginning of paragraph if inclusive.
         if (from < to) {
           if (step.isAdd) tr.addMark(from, to, mark);
           else tr.removeMark(from, to, mark);
