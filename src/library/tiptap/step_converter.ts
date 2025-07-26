@@ -1,6 +1,6 @@
 import { Mark, Slice } from '@tiptap/pm/model';
 import { Transaction } from '@tiptap/pm/state';
-import { AddMarkStep, RemoveMarkStep, ReplaceStep } from '@tiptap/pm/transform';
+import { AddMarkStep, AddNodeMarkStep, RemoveMarkStep, RemoveNodeMarkStep, ReplaceStep } from '@tiptap/pm/transform';
 import { ElementId, IdList } from 'articulated';
 
 // TODO: can/maybe checks, especially fro replace/aroundstep.
@@ -44,6 +44,13 @@ export type CollabTiptapStep =
       fromId: ElementId;
       /** If the mark is inclusive, this is the exclusive end of the range, else the inclusive end. */
       toId: ElementId | null;
+      mark: object;
+      isAdd: boolean;
+    }
+  | {
+      /** AddNodeMark or RemoveNodeMark step. */
+      type: 'changeNodeMark';
+      id: ElementId;
       mark: object;
       isAdd: boolean;
     };
@@ -101,6 +108,16 @@ export function collabTiptapStepReducer(
           if (step.isAdd) tr.addMark(from, to, mark);
           else tr.removeMark(from, to, mark);
         }
+        break;
+      }
+      case 'changeNodeMark': {
+        const pos = idList.indexOf(step.id);
+        if (pos === -1) continue;
+        // None of our mutations change the node at an ElementId, so pos should contain
+        // "the same" node that was targeted originally.
+        const mark = Mark.fromJSON(schema, step.mark);
+        if (step.isAdd) tr.addNodeMark(pos, mark);
+        else tr.removeNodeMark(pos, mark);
         break;
       }
       default:
@@ -179,6 +196,15 @@ export function updateToSteps(
         type: 'changeMark',
         fromId,
         toId,
+        mark: step.mark.toJSON(),
+        isAdd
+      });
+    } else if (step instanceof AddNodeMarkStep || step instanceof RemoveNodeMarkStep) {
+      const isAdd = step instanceof AddNodeMarkStep;
+      const id = idList.at(step.pos);
+      collabSteps.push({
+        type: 'changeNodeMark',
+        id,
         mark: step.mark.toJSON(),
         isAdd
       });
