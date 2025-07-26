@@ -1,11 +1,13 @@
-import { Slice } from '@tiptap/pm/model';
+import { Mark, Slice } from '@tiptap/pm/model';
 import { Transaction } from '@tiptap/pm/state';
-import { ReplaceStep } from '@tiptap/pm/transform';
+import { AddMarkStep, RemoveMarkStep, ReplaceStep } from '@tiptap/pm/transform';
 import { ElementId, IdList } from 'articulated';
+
+// TODO: can/maybe checks, especially fro replace/aroundstep.
 
 export type CollabTiptapStep =
   | {
-      /** Insert.
+      /** ReplaceStep, insertion-only case.
        *
        * Although this derives from the same step (ReplaceStep) as type "replace",
        * we need a special case for the pure-insert case, since insert-after is
@@ -18,7 +20,7 @@ export type CollabTiptapStep =
     }
   | {
       /**
-       * Delete or delete-and-insert.
+       * ReplaceStep, delete or delete-and-insert cases.
        */
       type: 'replace';
       /** Deletion range is inclusive. */
@@ -35,6 +37,15 @@ export type CollabTiptapStep =
         slice: object;
       };
       // TODO: step.structure?
+    }
+  | {
+      /** AddMark or RemoveMark step. */
+      type: 'changeMark';
+      fromId: ElementId;
+      /** If the mark is inclusive, this is the exclusive end of the range, else the inclusive end. */
+      toId: ElementId | null;
+      mark: object;
+      isAdd: boolean;
     };
 
 export function collabTiptapStepReducer(
@@ -76,8 +87,24 @@ export function collabTiptapStepReducer(
         }
         break;
       }
+      case 'changeMark': {
+        const mark = Mark.fromJSON(schema, step.mark);
+        const inclusive = mark.type.spec.inclusive ?? true;
+        const from = idList.indexOf(step.fromId, 'right');
+        const to = inclusive
+          ? step.toId === null
+            ? tr.doc.nodeSize
+            : idList.indexOf(step.toId, 'right')
+          : idList.indexOf(step.toId!, 'left') + 1;
+        // TODO: Expand to beginning of paragraph if inclusive.
+        if (from < to) {
+          if (step.isAdd) tr.addMark(from, to, mark);
+          else tr.removeMark(from, to, mark);
+        }
+        break;
+      }
       default:
-        console.error('Unknown CollabTiptapStep type, skipping:', step);
+        console.error('Unknown CollabTiptapStep type, skipping:', step satisfies never);
     }
 
     if (idList.length !== tr.doc.content.size) {
@@ -99,6 +126,8 @@ export function updateToSteps(
 
   for (let i = 0; i < tr.steps.length; i++) {
     const step = tr.steps[i];
+    const docBeforeStep = tr.docs[i];
+    const docAfterStep = i === tr.steps.length - 1 ? tr.doc : tr.docs[i + 1];
 
     if (step instanceof ReplaceStep) {
       if (step.from < step.to) {
@@ -137,17 +166,33 @@ export function updateToSteps(
         });
         idList = idList.insertAfter(beforeId, id, step.slice.size);
       }
+    } else if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
+      const isAdd = step instanceof AddMarkStep;
+      const inclusive = step.mark.type.spec.inclusive ?? true;
+      const fromId = idList.at(step.from);
+      const toId = inclusive
+        ? step.to === docBeforeStep.nodeSize - 1
+          ? null
+          : idList.at(step.to + 1)
+        : idList.at(step.to);
+      collabSteps.push({
+        type: 'changeMark',
+        fromId,
+        toId,
+        mark: step.mark.toJSON(),
+        isAdd
+      });
+    } else {
+      console.error('Unknown ProseMirror step type, skipping:', step);
     }
 
-    const docAfterStep = i === tr.steps.length - 1 ? tr.doc : tr.docs[i + 1];
     if (idList.length !== docAfterStep.content.size) {
       console.error(
         'IdList size mismatch (local)',
         idList.length,
         docAfterStep.content.size,
         step,
-        // Document before the step.
-        tr.docs[i],
+        docBeforeStep,
         docAfterStep
       );
     }
