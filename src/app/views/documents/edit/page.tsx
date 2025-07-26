@@ -19,6 +19,7 @@ import {
 import { IdList } from 'articulated';
 import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
+import MenuBar from './MenuBar';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -91,6 +92,7 @@ const DocumentEditSection = () => {
   return (
     <NavigationPage title={`Document: ${listRecord.name}`}>
       <Box>
+        <MenuBar editor={editor} />
         <EditorContent editor={editor} />
         {editor ? (
           <EditorController

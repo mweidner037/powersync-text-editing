@@ -8,6 +8,9 @@ export const TIPTAP_EXTENSIONS = [
     undoRedo: false,
     trailingNode: false,
     // TODO: Enable once we have ReplaceAroundStep.
+    heading: false,
+    blockquote: false,
+    codeBlock: false,
     listItem: false,
     bulletList: false,
     orderedList: false,

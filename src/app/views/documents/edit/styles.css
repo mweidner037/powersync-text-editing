@@ -10,7 +10,7 @@
   outline: none;
 }
 
-/* Basic editor styles, from https://tiptap.dev/docs/editor/getting-started/install/react */
+/* Basic editor styles, modified from https://tiptap.dev/docs/editor/extensions/functionality/starterkit */
 .tiptap {
   :first-child {
     margin-top: 0;
@@ -66,17 +66,17 @@
 
   /* Code and preformatted text styles */
   code {
-    background-color: var(--purple-light);
+    background-color: plum;
     border-radius: 0.4rem;
-    color: var(--black);
+    color: black;
     font-size: 0.85rem;
     padding: 0.25em 0.3em;
   }
 
   pre {
-    background: var(--black);
+    background: black;
     border-radius: 0.5rem;
-    color: var(--white);
+    color: white;
     font-family: 'JetBrainsMono', monospace;
     margin: 1.5rem 0;
     padding: 0.75rem 1rem;
@@ -90,14 +90,14 @@
   }
 
   blockquote {
-    border-left: 3px solid var(--gray-3);
+    border-left: 3px solid black;
     margin: 1.5rem 0;
     padding-left: 1rem;
   }
 
   hr {
     border: none;
-    border-top: 1px solid var(--gray-2);
+    border-top: 1px solid black;
     margin: 2rem 0;
   }
 }
