@@ -10,17 +10,13 @@ import {
   ReplaceStep,
   Step
 } from '@tiptap/pm/transform';
-import { ElementId, IdList } from 'articulated';
+import { ElementId, expandIds, IdList } from 'articulated';
 
-// TODO: can/maybe checks, especially for replace/aroundstep. If failed, still add deleted IDs to IdList.
-// TODO: For replace/around, use raw steps instead of tr. methods, so that they are not doing extra work that
-// will mess up our IdList values.
-// For other steps, I guess it is okay to let PM patch things up, but still avoid errors from e.g. invalid node types?
-// Compare step.apply to closest Transaction method.
 // TODO: For ReplaceStep, prioritize the current format unless explicitly overridden,
 // so that text concurrent to insertion does the expected thing in either insertion order.
 // TODO: If an inclusive selection went to the beginning of a paragraph, still do that
 // if the paragraph grew concurrently. Both orders (mark then text, text then mark).
+// TODO: Version steps? "insert/0" etc. In case we change args or reducers in the future.
 
 export type CollabTiptapStep =
   | {
@@ -102,6 +98,10 @@ export function collabTiptapStepReducer(
           idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
         } else {
           console.log('Rebased insert failed, skipping');
+          // Still insert the ElementIds but mark them as deleted, in case they are
+          // referenced in future operations.
+          idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
+          idList = deleteSeveral(idList, step.newId, slice.size);
         }
         break;
       }
@@ -120,6 +120,12 @@ export function collabTiptapStepReducer(
             }
           } else {
             console.log('Rebased replace failed, skipping');
+            if (step.insert) {
+              // Still insert the ElementIds but mark them as deleted, in case they are
+              // referenced in future operations.
+              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+              idList = deleteSeveral(idList, step.insert.newId, slice!.size);
+            }
           }
         } else {
           // This happens if the whole range was already deleted (due to the left/right bias).
@@ -129,6 +135,10 @@ export function collabTiptapStepReducer(
               idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
             } else {
               console.log('Rebased replace(2) failed, skipping');
+              // Still insert the ElementIds but mark them as deleted, in case they are
+              // referenced in future operations.
+              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+              idList = deleteSeveral(idList, step.insert.newId, slice!.size);
             }
           }
         }
@@ -144,33 +154,36 @@ export function collabTiptapStepReducer(
             : idList.indexOf(step.toId, 'right')
           : idList.indexOf(step.toId!, 'left') + 1;
         if (from < to) {
-          if (step.isAdd) tr.addMark(from, to, mark);
-          else tr.removeMark(from, to, mark);
+          // I believe these steps will always succeed (skipping any nodes that are
+          // incompatible with the mark), but we maybeStep just in case.
+          if (step.isAdd) tr.maybeStep(new AddMarkStep(from, to, mark));
+          else tr.maybeStep(new RemoveMarkStep(from, to, mark));
         }
         break;
       }
       case 'changeNodeMark': {
         const pos = idList.indexOf(step.id);
         if (pos === -1) continue;
-        // None of our mutations change the node at an ElementId, so pos should contain
-        // "the same" node that was targeted originally.
-        // TODO: This could change if we implement ReplaceAroundStep in a certain way.
         const mark = Mark.fromJSON(schema, step.mark);
-        if (step.isAdd) tr.addNodeMark(pos, mark);
-        else tr.removeNodeMark(pos, mark);
+        // I'm not sure about AddNodeMark applied to a node that's incompatible with the mark
+        // (e.g. because it was true-replaced concurrently). The code doesn't appear to check compatibility,
+        // meaning this step will never fail but it also can lead to a schema-violating state.
+        // For now we just maybeStep and hope nothing crazy happens.
+        if (step.isAdd) tr.maybeStep(new AddNodeMarkStep(pos, mark));
+        else tr.maybeStep(new RemoveNodeMarkStep(pos, mark));
         break;
       }
       case 'nodeAttr': {
         const pos = idList.indexOf(step.id);
         if (pos === -1) continue;
-        // None of our mutations change the node at an ElementId, so pos should contain
-        // "the same" node that was targeted originally.
-        tr.setNodeAttribute(pos, step.attr, step.value);
+        // From looking at the code, I believe this will skip changing the node if step.attr
+        // isn't valid for its type (e.g. because it was true-replaced concurrently) - okay.
+        tr.maybeStep(new AttrStep(pos, step.attr, step.value));
         break;
       }
       case 'docAttr': {
         const pmStep = Step.fromJSON(schema, step.step);
-        tr.step(pmStep);
+        tr.maybeStep(pmStep);
         break;
       }
       default:
@@ -322,5 +335,13 @@ function deleteRange(idList: IdList, startIndex: number, endIndex: number) {
   }
   for (const id of allIds) idList = idList.delete(id);
 
+  return idList;
+}
+
+// TODO: Add similar method to IdList? Perhaps as insert-already-deleted.
+function deleteSeveral(idList: IdList, startId: ElementId, count: number) {
+  for (const id of expandIds(startId, count)) {
+    idList = idList.delete(id);
+  }
   return idList;
 }
