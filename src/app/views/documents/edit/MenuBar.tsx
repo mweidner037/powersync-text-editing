@@ -17,18 +17,17 @@ export default function MenuBar({ editor }: { editor: Editor }) {
         isCode: ctx.editor.isActive('code') ?? false,
         canCode: ctx.editor.can().chain().toggleCode().run() ?? false,
         canClearMarks: ctx.editor.can().chain().unsetAllMarks().run() ?? false,
-        isParagraph: ctx.editor.isActive('paragraph') ?? false
-        // TODO
-        // isHeading1: ctx.editor.isActive('heading', { level: 1 }) ?? false,
-        // isHeading2: ctx.editor.isActive('heading', { level: 2 }) ?? false,
-        // isHeading3: ctx.editor.isActive('heading', { level: 3 }) ?? false,
-        // isHeading4: ctx.editor.isActive('heading', { level: 4 }) ?? false,
-        // isHeading5: ctx.editor.isActive('heading', { level: 5 }) ?? false,
-        // isHeading6: ctx.editor.isActive('heading', { level: 6 }) ?? false,
-        // isBulletList: ctx.editor.isActive('bulletList') ?? false,
-        // isOrderedList: ctx.editor.isActive('orderedList') ?? false,
-        // isCodeBlock: ctx.editor.isActive('codeBlock') ?? false,
-        // isBlockquote: ctx.editor.isActive('blockquote') ?? false
+        isParagraph: ctx.editor.isActive('paragraph') ?? false,
+        isHeading1: ctx.editor.isActive('heading', { level: 1 }) ?? false,
+        isHeading2: ctx.editor.isActive('heading', { level: 2 }) ?? false,
+        isHeading3: ctx.editor.isActive('heading', { level: 3 }) ?? false,
+        isHeading4: ctx.editor.isActive('heading', { level: 4 }) ?? false,
+        isHeading5: ctx.editor.isActive('heading', { level: 5 }) ?? false,
+        isHeading6: ctx.editor.isActive('heading', { level: 6 }) ?? false,
+        isBulletList: ctx.editor.isActive('bulletList') ?? false,
+        isOrderedList: ctx.editor.isActive('orderedList') ?? false,
+        isCodeBlock: ctx.editor.isActive('codeBlock') ?? false,
+        isBlockquote: ctx.editor.isActive('blockquote') ?? false
       };
     }
   });
@@ -67,8 +66,7 @@ export default function MenuBar({ editor }: { editor: Editor }) {
           className={editorState.isParagraph ? 'is-active' : ''}>
           Paragraph
         </button>
-        {/* TODO */}
-        {/* <button
+        <button
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           className={editorState.isHeading1 ? 'is-active' : ''}>
           H1
@@ -117,7 +115,7 @@ export default function MenuBar({ editor }: { editor: Editor }) {
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           className={editorState.isBlockquote ? 'is-active' : ''}>
           Blockquote
-        </button> */}
+        </button>
         <button onClick={() => editor.chain().focus().setHorizontalRule().run()}>Horizontal rule</button>
         <button onClick={() => editor.chain().focus().setHardBreak().run()}>Hard break</button>
       </div>
