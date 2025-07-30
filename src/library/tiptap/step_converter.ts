@@ -61,12 +61,30 @@ export type CollabTiptapStep =
       // TODO: step.structure?
     }
   | {
-      /**
-       * ReplaceAroundStep.
+      /** ReplaceAroundStep, insertion-only case.
+       * E.g. wrapping a block in a bullet list item.
        *
-       * In terms of IdList, the step replaces the range [from, gapFrom) with the
-       * first part of the slice [0, insert), and replaces the range [gapTo, to)
-       * with the second part of the slice [insert, slice.size).
+       * Although this derives from the same step (ReplaceAroundStep) as type "replaceAround",
+       * we need a special case for the pure-insert case, since insert-before/after is
+       * semantically different than inserting in place of a deleted range.
+       *
+       * In terms of IdList, the step inserts slice[0, insert) after part1BeforeId,
+       * and inserts slice[insert, slice.size) before part2AfterId.
+       * (We choose to bias towards the outside, since usually this step is wrapping some content in a block).
+       */
+      type: 'insertAround';
+      part1BeforeId: ElementId | null;
+      part2AfterId: ElementId | null;
+      newId: ElementId;
+      slice: object;
+      insert: number;
+    }
+  | {
+      /**
+       * ReplaceAroundStep, delete or delete-and-insert cases.
+       *
+       * In terms of IdList, the step replaces the range [from, gapFrom) with slice[0, insert),
+       * and replaces the range [gapTo, to) with slice[insert, slice.size).
        */
       type: 'replaceAround';
       /**
@@ -137,13 +155,11 @@ export function collabTiptapStepReducer(
         const slice = Slice.fromJSON(schema, step.slice);
 
         const pmStep = new ReplaceStep(pos, pos, slice);
-        if (tr.maybeStep(pmStep)) {
-          idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
-        } else {
-          console.log('Rebased insert failed, skipping');
+        idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
+        if (!tr.maybeStep(pmStep)) {
+          console.log('Rebased insert failed, skipping', step, pmStep);
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
-          idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
           idList = deleteBulk(idList, step.newId, slice.size);
         }
         break;
@@ -160,7 +176,7 @@ export function collabTiptapStepReducer(
             idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
           }
         } else {
-          console.log('Rebased replace failed, skipping');
+          console.log('Rebased replace failed, skipping', step, pmStep);
           if (step.insert) {
             // Still insert the new ElementIds but mark them as deleted, in case they are
             // referenced in future operations.
@@ -170,8 +186,33 @@ export function collabTiptapStepReducer(
         }
         break;
       }
+      case 'insertAround': {
+        const from = step.part1BeforeId === null ? 0 : idList.indexOf(step.part1BeforeId, 'left') + 1;
+        const to = step.part2AfterId === null ? idList.length : idList.indexOf(step.part2AfterId, 'right');
+        const slice = Slice.fromJSON(schema, step.slice);
+
+        const pmStep = new ReplaceAroundStep(from, to, from, to, slice, step.insert);
+        // Insert both parts.
+        idList = idList.insertAfter(step.part1BeforeId, step.newId, step.insert);
+        idList = idList.insertBefore(
+          step.part2AfterId,
+          { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+          slice.size - step.insert
+        );
+        if (!tr.maybeStep(pmStep)) {
+          console.log('Rebased insertAround failed, skipping', step, pmStep);
+          // Still insert the ElementIds but mark them as deleted, in case they are
+          // referenced in future operations.
+          idList = deleteBulk(idList, step.newId, step.insert);
+          idList = deleteBulk(
+            idList,
+            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+            slice.size - step.insert
+          );
+        }
+        break;
+      }
       case 'replaceAround': {
-        console.log(step);
         const from = idList.indexOf(step.fromId, 'right');
         const toIncl = idList.indexOf(step.toInclId, 'left');
         const gapFromExcl = idList.indexOf(step.gapFromIdExcl, 'left');
@@ -194,7 +235,7 @@ export function collabTiptapStepReducer(
             slice.size - step.insert
           );
         } else {
-          console.log('Rebased replaceAround failed, skipping');
+          console.log('Rebased replaceAround failed, skipping', step, pmStep);
           // Still insert the new ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
           idList = idList.insertBefore(step.fromId, step.newId, step.insert);
@@ -309,43 +350,64 @@ export function updateToSteps(
       } else {
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
-        const id = idGen.generateAfter(beforeId, idList);
+        const newId = idGen.generateAfter(beforeId, idList);
         collabSteps.push({
           type: 'insert',
           beforeId,
-          newId: id,
+          newId,
           slice: step.slice.toJSON()
         });
-        idList = idList.insertAfter(beforeId, id, step.slice.size);
+        idList = idList.insertAfter(beforeId, newId, step.slice.size);
       }
     } else if (step instanceof ReplaceAroundStep) {
-      console.log(step);
-      const fromId = idList.at(step.from);
-      const toInclId = idList.at(step.to - 1);
-      const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
-      const gapFromIdExcl = idList.at(step.gapFrom - 1);
-      const gapToId = idList.at(step.gapTo);
-      collabSteps.push({
-        type: 'replaceAround',
-        fromId,
-        toInclId,
-        newId,
-        slice: step.slice.toJSON(),
-        insert: step.insert,
-        gapFromIdExcl,
-        gapToId
-      });
-      // Delete the parts around each gap, then insert the slice's new ElementIds,
-      // leaving the gap's ElementIds alone.
-      // Do the second part first so we don't need to rebase indices.
-      idList = deleteRange(idList, step.gapTo, step.to);
-      idList = deleteRange(idList, step.from, step.gapFrom);
-      idList = idList.insertBefore(fromId, newId, step.insert);
-      idList = idList.insertAfter(
-        toInclId,
-        { bunchId: newId.bunchId, counter: newId.counter + step.insert },
-        step.slice.size - step.insert
-      );
+      if (step.from < step.gapFrom || step.gapTo < step.to) {
+        const fromId = idList.at(step.from);
+        const toInclId = idList.at(step.to - 1);
+        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
+        const gapFromIdExcl = idList.at(step.gapFrom - 1);
+        const gapToId = idList.at(step.gapTo);
+        collabSteps.push({
+          type: 'replaceAround',
+          fromId,
+          toInclId,
+          newId,
+          slice: step.slice.toJSON(),
+          insert: step.insert,
+          gapFromIdExcl,
+          gapToId
+        });
+        // Delete the parts around each gap, then insert the slice's new ElementIds,
+        // leaving the gap's ElementIds alone.
+        // Do the second part first so we don't need to rebase indices.
+        idList = deleteRange(idList, step.gapTo, step.to);
+        idList = deleteRange(idList, step.from, step.gapFrom);
+        idList = idList.insertBefore(fromId, newId, step.insert);
+        idList = idList.insertAfter(
+          toInclId,
+          { bunchId: newId.bunchId, counter: newId.counter + step.insert },
+          step.slice.size - step.insert
+        );
+      } else {
+        // Insert only.
+        const part1BeforeId = step.from === 0 ? null : idList.at(step.from - 1);
+        const part2AfterId = step.to === idList.length ? null : idList.at(step.to);
+        const newId = idGen.generateAfter(part1BeforeId, idList);
+        collabSteps.push({
+          type: 'insertAround',
+          part1BeforeId,
+          part2AfterId,
+          newId,
+          slice: step.slice.toJSON(),
+          insert: step.insert
+        });
+        // Insert both parts.
+        idList = idList.insertAfter(part1BeforeId, newId, step.insert);
+        idList = idList.insertBefore(
+          part2AfterId,
+          { bunchId: newId.bunchId, counter: newId.counter + step.insert },
+          step.slice.size - step.insert
+        );
+      }
     } else if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       const isAdd = step instanceof AddMarkStep;
       const inclusive = step.mark.type.spec.inclusive ?? true;
