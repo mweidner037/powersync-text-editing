@@ -7,6 +7,7 @@ import {
   DocAttrStep,
   RemoveMarkStep,
   RemoveNodeMarkStep,
+  ReplaceAroundStep,
   ReplaceStep,
   Step
 } from '@tiptap/pm/transform';
@@ -17,6 +18,9 @@ import { ElementId, expandIds, IdList } from 'articulated';
 // TODO: If an inclusive selection went to the beginning of a paragraph, still do that
 // if the paragraph grew concurrently. Both orders (mark then text, text then mark).
 // TODO: Version steps? "insert/0" etc. In case we change args or reducers in the future.
+// TODO: Alternative to ReplaceAroundStep when you are just changing a block node type
+// (e.g. paragraph -> heading), which just does LWW on the block type without creating any
+// new ElementIds.
 
 export type CollabTiptapStep =
   | {
@@ -36,20 +40,59 @@ export type CollabTiptapStep =
        * ReplaceStep, delete or delete-and-insert cases.
        */
       type: 'replace';
-      /** Deletion range is inclusive. */
+      /**
+       * Deletion range is inclusive.
+       * That way, deletions don't grow to include concurrent insertions at the ends.
+       */
       fromId: ElementId;
-      /** Omitted if == from (single char deletion). */
+      /** Omitted if == from (common case optimization for single char deletion). */
       toInclId?: ElementId;
       /** Present if we're also inserting. */
       insert?: {
-        // We can insert newId anywhere within the deleted range's exclusive boundary;
-        // different choices only affect our sort order relative to chars that are
-        // inserted-after one of the deleted ids.
-        // In the code below, we insert newId just before fromId.
+        /**
+         * We can insert newId anywhere within the deleted range's exclusive boundary;
+         * different choices only affect our sort order relative to chars that are
+         * inserted-after one of the deleted ids.
+         * In the code below, we insert newId just before fromId.
+         */
         newId: ElementId;
         slice: object;
       };
       // TODO: step.structure?
+    }
+  | {
+      /**
+       * ReplaceAroundStep.
+       *
+       * In terms of IdList, the step replaces the range [from, gapFrom) with the
+       * first part of the slice [0, insert), and replaces the range [gapTo, to)
+       * with the second part of the slice [insert, slice.size).
+       */
+      type: 'replaceAround';
+      /**
+       * Deletion range is inclusive.
+       * That way, deletions don't grow to include concurrent insertions at the ends.
+       */
+      fromId: ElementId;
+      toInclId: ElementId;
+      /**
+       * Start for all of the slice's inserted positions.
+       * Note that they inserted in two parts, one for each part of the slice.
+       * Like in "replace", we can insert each part anywhere within its deleted range's exclusive boundary;
+       * we choose to bias towards the outside -
+       * just before fromId and just after toInclId.
+       */
+      newId: ElementId;
+      slice: object;
+      insert: number;
+      /**
+       * Gap range is exclusive.
+       * That way, the gap grows to include concurrent insertions at the ends
+       * (useful in the common case where the gap is a block node's content and
+       * this step is changing the block type).
+       */
+      gapFromIdExcl: ElementId;
+      gapToId: ElementId;
     }
   | {
       /** AddMarkStep or RemoveMarkStep. */
@@ -101,47 +144,71 @@ export function collabTiptapStepReducer(
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
           idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
-          idList = deleteSeveral(idList, step.newId, slice.size);
+          idList = deleteBulk(idList, step.newId, slice.size);
         }
         break;
       }
       case 'replace': {
         const from = idList.indexOf(step.fromId, 'right');
         const toIncl = step.toInclId === undefined ? from : idList.indexOf(step.toInclId, 'left');
-
         const slice = step.insert === undefined ? undefined : Slice.fromJSON(schema, step.insert.slice);
 
-        if (from <= toIncl) {
-          const pmStep = new ReplaceStep(from, toIncl + 1, slice || Slice.empty);
-          if (tr.maybeStep(pmStep)) {
-            idList = deleteRange(idList, from, toIncl);
-            if (step.insert) {
-              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
-            }
-          } else {
-            console.log('Rebased replace failed, skipping');
-            if (step.insert) {
-              // Still insert the ElementIds but mark them as deleted, in case they are
-              // referenced in future operations.
-              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
-              idList = deleteSeveral(idList, step.insert.newId, slice!.size);
-            }
+        const pmStep = new ReplaceStep(from, toIncl + 1, slice || Slice.empty);
+        if (tr.maybeStep(pmStep)) {
+          idList = deleteRange(idList, pmStep.from, pmStep.to);
+          if (step.insert) {
+            idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
           }
         } else {
-          // This happens if the whole range was already deleted (due to the left/right bias).
+          console.log('Rebased replace failed, skipping');
           if (step.insert) {
-            const pmStep = new ReplaceStep(from, from, slice!);
-            if (tr.maybeStep(pmStep)) {
-              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
-            } else {
-              console.log('Rebased replace(2) failed, skipping');
-              // Still insert the ElementIds but mark them as deleted, in case they are
-              // referenced in future operations.
-              idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
-              idList = deleteSeveral(idList, step.insert.newId, slice!.size);
-            }
+            // Still insert the new ElementIds but mark them as deleted, in case they are
+            // referenced in future operations.
+            idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
+            idList = deleteBulk(idList, step.insert.newId, slice!.size);
           }
         }
+        break;
+      }
+      case 'replaceAround': {
+        const from = idList.indexOf(step.fromId, 'right');
+        const toIncl = idList.indexOf(step.toInclId, 'left');
+        const gapFromExcl = idList.indexOf(step.gapFromIdExcl, 'left');
+        const gapTo = idList.indexOf(step.gapToId, 'right');
+        const slice = Slice.fromJSON(schema, step.slice);
+        // insert doesn't need rebasing because it's defined relative to the slice,
+        // which hasn't changed (it's the new content).
+
+        const pmStep = new ReplaceAroundStep(from, toIncl + 1, gapFromExcl + 1, gapTo, slice, step.insert);
+        if (tr.maybeStep(pmStep)) {
+          // Delete the parts around each gap, then insert the slice's new ElementIds,
+          // leaving the gap's ElementIds alone.
+          idList = deleteRange(idList, pmStep.from, pmStep.gapFrom);
+          idList = deleteRange(idList, pmStep.gapTo, pmStep.to);
+          idList = idList.insertBefore(step.fromId, step.newId, step.insert);
+          idList = idList.insertAfter(
+            step.toInclId,
+            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+            slice.size - step.insert
+          );
+        } else {
+          console.log('Rebased replaceAround failed, skipping');
+          // Still insert the new ElementIds but mark them as deleted, in case they are
+          // referenced in future operations.
+          idList = idList.insertBefore(step.fromId, step.newId, step.insert);
+          idList = deleteBulk(idList, step.newId, step.insert);
+          idList = idList.insertAfter(
+            step.toInclId,
+            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+            slice.size - step.insert
+          );
+          idList = deleteBulk(
+            idList,
+            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+            slice.size - step.insert
+          );
+        }
+
         break;
       }
       case 'changeMark': {
@@ -217,7 +284,7 @@ export function updateToSteps(
         // Delete or delete-and-insert.
         const fromId = idList.at(step.from);
         const toInclId = step.to === step.from + 1 ? undefined : idList.at(step.to - 1);
-        idList = deleteRange(idList, step.from, step.to - 1);
+        idList = deleteRange(idList, step.from, step.to);
         if (step.slice.size === 0) {
           collabSteps.push({
             type: 'replace',
@@ -249,6 +316,32 @@ export function updateToSteps(
         });
         idList = idList.insertAfter(beforeId, id, step.slice.size);
       }
+    } else if (step instanceof ReplaceAroundStep) {
+      const fromId = idList.at(step.from);
+      const toInclId = idList.at(step.to - 1);
+      const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
+      const gapFromIdExcl = idList.at(step.gapFrom - 1);
+      const gapToId = idList.at(step.gapTo);
+      collabSteps.push({
+        type: 'replaceAround',
+        fromId,
+        toInclId,
+        newId,
+        slice: step.slice.toJSON(),
+        insert: step.insert,
+        gapFromIdExcl,
+        gapToId
+      });
+      // Delete the parts around each gap, then insert the slice's new ElementIds,
+      // leaving the gap's ElementIds alone.
+      idList = deleteRange(idList, step.from, step.gapFrom);
+      idList = deleteRange(idList, step.gapTo, step.to);
+      idList = idList.insertBefore(fromId, newId, step.insert);
+      idList = idList.insertAfter(
+        toInclId,
+        { bunchId: newId.bunchId, counter: newId.counter + step.insert },
+        step.slice.size - step.insert
+      );
     } else if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
       const isAdd = step instanceof AddMarkStep;
       const inclusive = step.mark.type.spec.inclusive ?? true;
@@ -328,9 +421,9 @@ export class ElementIdGenerator {
 }
 
 // TODO: Add as a method on IdList?
-function deleteRange(idList: IdList, startIndex: number, endIndex: number) {
+function deleteRange(idList: IdList, from: number, to: number) {
   const allIds: ElementId[] = [];
-  for (let i = startIndex; i <= endIndex; i++) {
+  for (let i = from; i < to; i++) {
     allIds.push(idList.at(i));
   }
   for (const id of allIds) idList = idList.delete(id);
@@ -339,7 +432,7 @@ function deleteRange(idList: IdList, startIndex: number, endIndex: number) {
 }
 
 // TODO: Add similar method to IdList? Perhaps as insert-already-deleted.
-function deleteSeveral(idList: IdList, startId: ElementId, count: number) {
+function deleteBulk(idList: IdList, startId: ElementId, count: number) {
   for (const id of expandIds(startId, count)) {
     idList = idList.delete(id);
   }
