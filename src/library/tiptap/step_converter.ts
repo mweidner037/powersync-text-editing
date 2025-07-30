@@ -171,6 +171,7 @@ export function collabTiptapStepReducer(
         break;
       }
       case 'replaceAround': {
+        console.log(step);
         const from = idList.indexOf(step.fromId, 'right');
         const toIncl = idList.indexOf(step.toInclId, 'left');
         const gapFromExcl = idList.indexOf(step.gapFromIdExcl, 'left');
@@ -183,8 +184,9 @@ export function collabTiptapStepReducer(
         if (tr.maybeStep(pmStep)) {
           // Delete the parts around each gap, then insert the slice's new ElementIds,
           // leaving the gap's ElementIds alone.
-          idList = deleteRange(idList, pmStep.from, pmStep.gapFrom);
+          // Do the second part first so we don't need to rebase indices.
           idList = deleteRange(idList, pmStep.gapTo, pmStep.to);
+          idList = deleteRange(idList, pmStep.from, pmStep.gapFrom);
           idList = idList.insertBefore(step.fromId, step.newId, step.insert);
           idList = idList.insertAfter(
             step.toInclId,
@@ -317,6 +319,7 @@ export function updateToSteps(
         idList = idList.insertAfter(beforeId, id, step.slice.size);
       }
     } else if (step instanceof ReplaceAroundStep) {
+      console.log(step);
       const fromId = idList.at(step.from);
       const toInclId = idList.at(step.to - 1);
       const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
@@ -334,8 +337,9 @@ export function updateToSteps(
       });
       // Delete the parts around each gap, then insert the slice's new ElementIds,
       // leaving the gap's ElementIds alone.
-      idList = deleteRange(idList, step.from, step.gapFrom);
+      // Do the second part first so we don't need to rebase indices.
       idList = deleteRange(idList, step.gapTo, step.to);
+      idList = deleteRange(idList, step.from, step.gapFrom);
       idList = idList.insertBefore(fromId, newId, step.insert);
       idList = idList.insertAfter(
         toInclId,
