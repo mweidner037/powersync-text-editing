@@ -167,7 +167,12 @@ export const SharedCursorsExtension = Extension.create<SharedCursorOptions>({
 
             return { cursors, decorations };
           }
-        } satisfies StateField<PluginStateType>
+        } satisfies StateField<PluginStateType>,
+        props: {
+          decorations: (state) => {
+            return (pluginKey.getState(state) as PluginStateType).decorations;
+          }
+        }
       })
     ];
   }

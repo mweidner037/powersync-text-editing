@@ -20,11 +20,7 @@ const text_updates = new Table(
 
 const shared_cursors = new Table({
   doc_id: column.text,
-  // Server version of expires_at, according to the server's clock.
-  // TODO: How to compare to this locally, in case of clock drift?
   expires_at: column.text,
-  // Local version of expires_at (for other local tabs), according to the local clock.
-  expires_at_local: column.text,
   user_data: column.text,
   selection: column.text
 });

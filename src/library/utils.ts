@@ -10,21 +10,16 @@ export function randomName() {
 }
 
 const COLORS = [
-  '#F8F8FF', // Ghost White
-  '#F0F8FF', // Alice Blue
-  '#E6E6FA', // Lavender
-  '#FFF0F5', // Lavender Blush
-  '#F0FFFF', // Azure
-  '#F5FFFA', // Mint Cream
-  '#FFFACD', // Lemon Chiffon
-  '#FFF8DC', // Cornsilk
-  '#FFEFD5', // Papaya Whip
-  '#FFE4E1', // Misty Rose
-  '#E0FFFF', // Light Cyan
-  '#F0F0F0', // Light Gray
-  '#FAFAFA', // Very Light Gray
-  '#FFE4B5', // Moccasin
-  '#FFDAB9' // Peach Puff
+  '#f783ac', // original pink
+  '#83f7ac', // mint green
+  '#ac83f7', // lavender
+  '#f7ac83', // peach
+  '#83acf7', // sky blue
+  '#acf783', // lime green
+  '#f783f7', // magenta
+  '#83f7f7', // cyan
+  '#f7f783', // yellow
+  '#f78383' // coral red
 ];
 
 export function randomColor() {

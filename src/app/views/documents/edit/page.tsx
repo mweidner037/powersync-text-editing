@@ -9,7 +9,7 @@ import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import './styles.css';
 import { useReducedTable } from '@/library/powersync/use_reduced_table';
-import { TIPTAP_EXTENSIONS } from '@/library/tiptap/extensions';
+import { buildTiptapExtensions } from '@/library/tiptap/extensions';
 import {
   CollabTiptapStep,
   collabTiptapStepReducer,
@@ -43,26 +43,29 @@ const DocumentEditSection = () => {
 
   // Our shared cursor
 
-  const clientIDRef = useRef('');
+  const clientIdRef = useRef('');
   const userDataRef = useRef<UserData>({ name: '', color: '' });
-  useEffect(() => {
+  if (!clientIdRef.current) {
     // This needs to unique to the editor instance - can't be userId.
-    const clientID = uuidv4();
-    clientIDRef.current = clientID;
+    const clientId = uuidv4();
+    clientIdRef.current = clientId;
     userDataRef.current = {
       // TODO: Get name from account?
       name: randomName(),
       color: randomColor()
     };
+  }
+
+  useEffect(() => {
     void powerSync.execute(
-      `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at_local, user_data, selection)
+      `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at, user_data, selection)
     VALUES (?, ?, (datetime('now', '+30 seconds')), ?, ?)`,
-      [clientIDRef.current, docID, JSON.stringify(userDataRef.current), null]
+      [clientIdRef.current, docID, JSON.stringify(userDataRef.current), null]
     );
 
     return () => {
       // Best-effort delete. If this fails, the row will expire shortly.
-      void powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE id = ?`, [clientID]);
+      void powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE id = ?`, [clientIdRef.current]);
     };
   }, []);
 
@@ -92,8 +95,8 @@ const DocumentEditSection = () => {
   };
   const updatedSharedCursor = async (selection: IdSelection) => {
     await powerSync.execute(
-      `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at_local = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
-      [JSON.stringify(selection), clientIDRef.current]
+      `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
+      [JSON.stringify(selection), clientIdRef.current]
     );
   };
   const clear = async () => {
@@ -105,7 +108,7 @@ const DocumentEditSection = () => {
 
   const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator());
   const editor = useEditor({
-    extensions: TIPTAP_EXTENSIONS,
+    extensions: buildTiptapExtensions(clientIdRef.current),
     // We update the editor's state each render with a tr, so turn this off
     // to prevent an infinite rerender loop.
     shouldRerenderOnTransaction: false,
@@ -130,6 +133,7 @@ const DocumentEditSection = () => {
       void updatedSharedCursor(idSelection);
 
       // TODO: also null/set on focus in/out, like y-cursor.
+      // TODO: Hearbeat
     }
   });
 
@@ -228,18 +232,16 @@ function EditorController({
 }
 
 function SharedCursorQuery({ docID, editor }: { docID: string; editor: Editor }) {
+  // TODO: Need to rerun this on a timer, not just when data changes (since now() also changes).
   const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
     `
     SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}
     WHERE doc_id=?
-    AND
-    (
-      (expires_at IS NULL AND datetime('now') < expires_at_local)
-      OR
-      (expires_at IS NOT NULL AND datetime('now') < datetime(expires_at))
-    )`,
+    AND datetime('now') < expires_at`,
     [docID]
   );
+  // TODO: clock sync issues. Currently we're trusting all clients to be in sync.
+  // Setting a server expires_at would need a trigger and still won't be in sync with clients.
 
   const cursors = cursorRows.map(
     ({ id, user_data, selection }): SharedCursor => ({
