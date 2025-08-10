@@ -2,7 +2,7 @@ import { EditorState, Plugin, PluginKey, StateField, Transaction } from '@tiptap
 import { Extension } from '@tiptap/core';
 import { IdList } from 'articulated';
 
-const idListStatePluginKey = new PluginKey('idListState');
+const pluginKey = new PluginKey('idListState');
 
 interface PluginStateType {
   isValid: boolean;
@@ -10,7 +10,7 @@ interface PluginStateType {
 }
 
 export function getIdListState(editorState: EditorState): { isValid: boolean; idList: IdList } {
-  const state = idListStatePluginKey.getState(editorState) as PluginStateType | undefined;
+  const state = pluginKey.getState(editorState) as PluginStateType | undefined;
   if (!state) {
     throw new Error('IdListStateExtension not installed (or not yet initialized)');
   }
@@ -18,17 +18,13 @@ export function getIdListState(editorState: EditorState): { isValid: boolean; id
 }
 
 export function setIdListState(tr: Transaction, idList: IdList): Transaction {
-  tr.setMeta(idListStatePluginKey, idList);
+  tr.setMeta(pluginKey, idList);
   return tr;
 }
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     setIdListState: {
-      /**
-       * Normalize nodes to a simple paragraph.
-       * @example editor.commands.clearNodes()
-       */
       setIdListState: (idList: IdList) => ReturnType;
     };
   }
@@ -58,7 +54,10 @@ export const IdListStateExtension = Extension.create({
       setIdListState:
         (idList: IdList) =>
         ({ tr, dispatch }) => {
-          dispatch?.(setIdListState(tr, idList));
+          if (!dispatch) return true;
+
+          dispatch(setIdListState(tr, idList));
+
           return true;
         }
     };
@@ -67,7 +66,7 @@ export const IdListStateExtension = Extension.create({
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: idListStatePluginKey,
+        key: pluginKey,
         state: {
           init(_config, instance) {
             // Note: This assumes that all collaborators have the same initial state
@@ -79,7 +78,7 @@ export const IdListStateExtension = Extension.create({
             };
           },
           apply(tr, value, _oldState, _newState) {
-            const newIdList = tr.getMeta(idListStatePluginKey) as IdList | undefined;
+            const newIdList = tr.getMeta(pluginKey) as IdList | undefined;
             if (newIdList) return { isValid: true, idList: newIdList };
             else {
               if (tr.steps.length > 0) {
