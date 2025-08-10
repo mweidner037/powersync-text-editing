@@ -70,7 +70,7 @@ const DocumentEditSection = () => {
     // to prevent an infinite rerender loop.
     shouldRerenderOnTransaction: false,
     onUpdate({ transaction, editor }) {
-      const [steps, newIdList] = updateToSteps(transaction, getIdListState(editor.state), idGenRef.current);
+      const [steps, newIdList] = updateToSteps(transaction, getIdListState(editor.state).idList, idGenRef.current);
       // It would be cleaner to add the new IdList to transaction and then dispatch it,
       // like when using ProseMirror's dispatchTransaction prop.
       // That way the state is updated before any local plugins see this transaction.
@@ -124,7 +124,7 @@ function EditorController({
   // and update idListRef to match.
   // Except, preserve the selection in a collaboration-aware way using IdList.
 
-  const startingIdList = getIdListState(editor.state);
+  const startingIdList = getIdListState(editor.state).idList;
 
   // - Reset the state, since we (re-)apply all updates below.
   const tr = editor.state.tr;
@@ -155,16 +155,14 @@ function EditorController({
 
   // - Restore the starting selection in a collaboration-aware way.
   // We do this by converting the initial selection to ElementIds and back.
-  if (startingIdList) {
-    const startingSelection = editor.state.selection;
-    const idSelection = selectionToIds(startingSelection, startingIdList);
-    try {
-      tr.setSelection(selectionFromIds(idSelection, tr.doc, reducedResult.idList));
-    } catch (error) {
-      // This can happen naturally if the state goes backwards somehow. Clear the selection and don't crash.
-      tr.setSelection(TextSelection.create(tr.doc, 0));
-      console.error('Error restoring selection', error);
-    }
+  const startingSelection = editor.state.selection;
+  const idSelection = selectionToIds(startingSelection, startingIdList);
+  try {
+    tr.setSelection(selectionFromIds(idSelection, tr.doc, reducedResult.idList));
+  } catch (error) {
+    // This can happen naturally if the state goes backwards somehow. Clear the selection and don't crash.
+    tr.setSelection(TextSelection.create(tr.doc, 0));
+    console.error('Error restoring selection', error);
   }
 
   // - Update the editor.
