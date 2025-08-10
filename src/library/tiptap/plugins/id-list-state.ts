@@ -12,7 +12,7 @@ interface PluginStateType {
 export function getIdListState(editorState: EditorState): { isValid: boolean; idList: IdList } {
   const state = pluginKey.getState(editorState) as PluginStateType | undefined;
   if (!state) {
-    throw new Error('IdListStateExtension not installed (or not yet initialized)');
+    throw new Error('IdListStateExtension not installed (or too late in the plugin order)');
   }
   return state;
 }
@@ -45,9 +45,9 @@ declare module '@tiptap/core' {
 export const IdListStateExtension = Extension.create({
   name: 'idListState',
 
-  // Relatively low (early) so that other plugins can see our updated state field
+  // Relatively high (early) so that other plugins can see our updated state field
   // in https://prosemirror.net/docs/ref/#state.StateField.apply .
-  priority: 50,
+  priority: 999,
 
   addCommands() {
     return {

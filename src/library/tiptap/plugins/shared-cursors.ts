@@ -94,11 +94,11 @@ export interface SharedCursorOptions {
  * Until then, our state will show as invalid; plugins that depend on it should
  * wait for a future tr with a valid state.
  */
-export const IdListStateExtension = Extension.create<SharedCursorOptions>({
+export const SharedCursorsExtension = Extension.create<SharedCursorOptions>({
   name: 'idListState',
 
-  // Relatively high (late) so that the rest of the doc is updated before we draw cursors.
-  priority: 999,
+  // Relatively low (late) so that the rest of the doc is updated before we draw cursors.
+  priority: 50,
 
   addOptions() {
     return {

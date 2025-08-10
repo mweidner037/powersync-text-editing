@@ -56,7 +56,7 @@ const DocumentEditSection = () => {
     };
     void powerSync.execute(
       `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at_local, user_data, selection)
-    VALUES (?, ?, (datetime('now', '+30 seconds')) ?, ?)`,
+    VALUES (?, ?, (datetime('now', '+30 seconds')), ?, ?)`,
       [clientIDRef.current, docID, JSON.stringify(userDataRef.current), null]
     );
 
@@ -151,12 +151,12 @@ const DocumentEditSection = () => {
         {editor ? (
           <>
             <EditorController
-              key={docID}
+              key={docID + '-editor'}
               docID={docID!}
               editor={editor}
               pendingUpdateCounterRef={pendingUpdateCounterRef}
             />
-            <SharedCursorQuery key={docID} docID={docID!} editor={editor} />
+            <SharedCursorQuery key={docID + '-cursors'} docID={docID!} editor={editor} />
           </>
         ) : null}
         <Button onClick={clear}>Clear</Button>
@@ -231,7 +231,7 @@ function SharedCursorQuery({ docID, editor }: { docID: string; editor: Editor })
   const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
     `
     SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}
-    WHERE doc_id = ?
+    WHERE doc_id=?
     AND
     (
       (expires_at IS NULL AND datetime('now') < expires_at_local)
