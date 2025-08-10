@@ -1,10 +1,10 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useRef } from 'react';
+import { MutableRefObject, Suspense, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
-import { LISTS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
+import { LISTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import './styles.css';
@@ -17,10 +17,18 @@ import {
   updateToSteps
 } from '@/library/tiptap/step_converter';
 import { IdList } from 'articulated';
-import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
+import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
 import MenuBar from './MenuBar';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
+import { v4 as uuidv4 } from 'uuid';
+import { randomName, randomColor } from '@/library/utils';
+import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
+
+interface UserData {
+  name: string;
+  color: string;
+}
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -32,6 +40,31 @@ const DocumentEditSection = () => {
   const {
     data: [listRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [docID]);
+
+  // Our shared cursor
+
+  const clientIDRef = useRef('');
+  const userDataRef = useRef<UserData>({ name: '', color: '' });
+  useEffect(() => {
+    // This needs to unique to the editor instance - can't be userId.
+    const clientID = uuidv4();
+    clientIDRef.current = clientID;
+    userDataRef.current = {
+      // TODO: Get name from account?
+      name: randomName(),
+      color: randomColor()
+    };
+    void powerSync.execute(
+      `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at_local, user_data, selection)
+    VALUES (?, ?, (datetime('now', '+30 seconds')) ?, ?)`,
+      [clientIDRef.current, docID, JSON.stringify(userDataRef.current), null]
+    );
+
+    return () => {
+      // Best-effort delete. If this fails, the row will expire shortly.
+      void powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE id = ?`, [clientID]);
+    };
+  }, []);
 
   // PowerSync mutations
 
@@ -57,8 +90,15 @@ const DocumentEditSection = () => {
       pendingUpdateCounterRef.current--;
     }
   };
+  const updatedSharedCursor = async (selection: IdSelection) => {
+    await powerSync.execute(
+      `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at_local = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
+      [JSON.stringify(selection), clientIDRef.current]
+    );
+  };
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
+    await powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE doc_id = ?`, [docID!]);
   };
 
   // Tiptap setup
@@ -79,6 +119,17 @@ const DocumentEditSection = () => {
       editor.commands.setIdListState(newIdList);
 
       if (steps.length > 0) void doUpdate(steps);
+    },
+    onSelectionUpdate({ transaction, editor }) {
+      if (transaction.getMeta('ourRemoteUpdate')) return;
+
+      const { isValid, idList } = getIdListState(editor.state);
+      if (!isValid) return;
+      const idSelection = selectionToIds(editor.state.selection, idList);
+
+      void updatedSharedCursor(idSelection);
+
+      // TODO: also null/set on focus in/out, like y-cursor.
     }
   });
 
@@ -98,12 +149,15 @@ const DocumentEditSection = () => {
         <MenuBar editor={editor} />
         <EditorContent editor={editor} />
         {editor ? (
-          <EditorController
-            key={docID}
-            docID={docID!}
-            editor={editor}
-            pendingUpdateCounterRef={pendingUpdateCounterRef}
-          />
+          <>
+            <EditorController
+              key={docID}
+              docID={docID!}
+              editor={editor}
+              pendingUpdateCounterRef={pendingUpdateCounterRef}
+            />
+            <SharedCursorQuery key={docID} docID={docID!} editor={editor} />
+          </>
         ) : null}
         <Button onClick={clear}>Clear</Button>
       </Box>
@@ -166,9 +220,36 @@ function EditorController({
   }
 
   // - Update the editor.
+  tr.setMeta('ourRemoteUpdate', true);
   editor.view.updateState(editor.state.apply(tr));
 
   // Not a real component, just a wrapper for hooks.
+  return null;
+}
+
+function SharedCursorQuery({ docID, editor }: { docID: string; editor: Editor }) {
+  const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
+    `
+    SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}
+    WHERE doc_id = ?
+    AND
+    (
+      (expires_at IS NULL AND datetime('now') < expires_at_local)
+      OR
+      (expires_at IS NOT NULL AND datetime('now') < datetime(expires_at))
+    )`,
+    [docID]
+  );
+
+  const cursors = cursorRows.map(
+    ({ id, user_data, selection }): SharedCursor => ({
+      clientId: id,
+      selection: selection ? JSON.parse(selection) : null,
+      user: JSON.parse(user_data)
+    })
+  );
+  editor.commands.setSharedCursors(cursors);
+
   return null;
 }
 

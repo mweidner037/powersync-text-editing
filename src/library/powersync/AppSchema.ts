@@ -3,6 +3,7 @@ import { column, Schema, Table } from '@powersync/web';
 // TODO: Rename 'documents'
 export const LISTS_TABLE = 'lists';
 export const TEXT_UPDATES_TABLE = 'text_updates';
+export const SHARED_CURSORS_TABLE = 'shared_cursors';
 
 const text_updates = new Table(
   {
@@ -17,6 +18,17 @@ const text_updates = new Table(
   { indexes: { list: ['doc_id'] } }
 );
 
+const shared_cursors = new Table({
+  doc_id: column.text,
+  // Server version of expires_at, according to the server's clock.
+  // TODO: How to compare to this locally, in case of clock drift?
+  expires_at: column.text,
+  // Local version of expires_at (for other local tabs), according to the local clock.
+  expires_at_local: column.text,
+  user_data: column.text,
+  selection: column.text
+});
+
 const lists = new Table({
   created_at: column.text,
   name: column.text,
@@ -25,10 +37,12 @@ const lists = new Table({
 
 export const AppSchema = new Schema({
   text_updates,
+  shared_cursors,
   lists
 });
 
 export type Database = (typeof AppSchema)['types'];
 
-export type TextUpdateRecord = Database['text_updates'];
-export type ListRecord = Database['lists'];
+export type TextUpdateRecord = Database[typeof TEXT_UPDATES_TABLE];
+export type ListRecord = Database[typeof LISTS_TABLE];
+export type SharedCursorRecord = Database[typeof SHARED_CURSORS_TABLE];
