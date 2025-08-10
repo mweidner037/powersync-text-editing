@@ -20,6 +20,7 @@ import { IdList } from 'articulated';
 import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
 import MenuBar from './MenuBar';
+import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -62,18 +63,20 @@ const DocumentEditSection = () => {
 
   // Tiptap setup
 
-  const idListRef = useRef<IdList | null>(null);
   const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator());
   const editor = useEditor({
     extensions: TIPTAP_EXTENSIONS,
     // We update the editor's state each render with a tr, so turn this off
     // to prevent an infinite rerender loop.
     shouldRerenderOnTransaction: false,
-    onUpdate({ transaction }) {
-      const [steps, newIdList] = updateToSteps(transaction, idListRef.current!, idGenRef.current);
-      // We need to set this now so that it matches the editor's state (which acts like a useRef<EditorState>).
-      // That's needed for selectionToIds to work in the next render.
-      idListRef.current = newIdList;
+    onUpdate({ transaction, editor }) {
+      const [steps, newIdList] = updateToSteps(transaction, getIdListState(editor.state), idGenRef.current);
+      // It would be cleaner to add the new IdList to transaction and then dispatch it,
+      // like when using ProseMirror's dispatchTransaction prop.
+      // That way the state is updated before any local plugins see this transaction.
+      // With Tiptap, we instead need to update it afterwards and trust plugins to not
+      // read the state on local updates.
+      editor.commands.setIdListState(newIdList);
 
       if (steps.length > 0) void doUpdate(steps);
     }
@@ -99,7 +102,6 @@ const DocumentEditSection = () => {
             key={docID}
             docID={docID!}
             editor={editor}
-            idListRef={idListRef}
             pendingUpdateCounterRef={pendingUpdateCounterRef}
           />
         ) : null}
@@ -109,25 +111,20 @@ const DocumentEditSection = () => {
   );
 };
 
-// Make this a pure component so it *only* re-renders when the query changes.
-// TODO: This is still re-rendering too soon, so that the reduced state is behind the
-// editor's internal state - causing issues with selection restoration.
 function EditorController({
   docID,
   editor,
-  idListRef,
   pendingUpdateCounterRef
 }: {
   docID: string;
   editor: Editor;
-  idListRef: MutableRefObject<IdList | null>;
   pendingUpdateCounterRef: MutableRefObject<number>;
 }) {
   // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE,
   // and update idListRef to match.
   // Except, preserve the selection in a collaboration-aware way using IdList.
 
-  const startingIdList = idListRef.current;
+  const startingIdList = getIdListState(editor.state);
 
   // - Reset the state, since we (re-)apply all updates below.
   const tr = editor.state.tr;
@@ -154,6 +151,8 @@ function EditorController({
     return null;
   }
 
+  setIdListState(tr, reducedResult.idList);
+
   // - Restore the starting selection in a collaboration-aware way.
   // We do this by converting the initial selection to ElementIds and back.
   if (startingIdList) {
@@ -168,9 +167,8 @@ function EditorController({
     }
   }
 
-  // - Update the editor and corresponding idListRef.
+  // - Update the editor.
   editor.view.updateState(editor.state.apply(tr));
-  idListRef.current = reducedResult.idList;
 
   // Not a real component, just a wrapper for hooks.
   return null;
