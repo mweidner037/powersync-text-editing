@@ -24,6 +24,7 @@ import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list
 import { v4 as uuidv4 } from 'uuid';
 import { randomName, randomColor } from '@/library/utils';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
+import _ from 'lodash';
 
 interface UserData {
   name: string;
@@ -93,12 +94,12 @@ const DocumentEditSection = () => {
       pendingUpdateCounterRef.current--;
     }
   };
-  const updatedSharedCursor = async (selection: IdSelection) => {
+  const updatedSharedCursor = _.throttle(async (selection: IdSelection) => {
     await powerSync.execute(
       `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
       [JSON.stringify(selection), clientIdRef.current]
     );
-  };
+  }, 500);
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
     await powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE doc_id = ?`, [docID!]);
@@ -233,6 +234,7 @@ function EditorController({
 
 function SharedCursorQuery({ docID, editor }: { docID: string; editor: Editor }) {
   // TODO: Need to rerun this on a timer, not just when data changes (since now() also changes).
+  // Could do that always to debounce as well.
   const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
     `
     SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}

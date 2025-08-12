@@ -129,4 +129,8 @@
     user-select: none;
     white-space: nowrap;
   }
+  .collaboration-carets__label::selection {
+    /* Needed in Firefox, see https://stackoverflow.com/questions/11908275/user-select-breaks-across-multiple-elements */
+    background: transparent;
+  }
 }
