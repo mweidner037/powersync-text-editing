@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useEffect, useRef, useState } from 'react';
+import { MutableRefObject, ReactNode, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -25,13 +25,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { randomName, randomColor } from '@/library/utils';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import _ from 'lodash';
+import { GuardBySync } from '@/components/widgets/GuardBySync';
 
 interface UserData {
   name: string;
   color: string;
 }
 
-const SetPowerSyncParams = () => {
+const SetPowerSyncParams = ({ children }: { children: ReactNode }) => {
   const powerSync = usePowerSync();
   const supabase = useSupabase();
   const { id: docID } = useParams();
@@ -54,7 +55,7 @@ const SetPowerSyncParams = () => {
   }, [docID, supabase]);
 
   if (hasParams) {
-    return <DocumentEditSection />;
+    return children;
   } else {
     return 'Connecting...';
   }
@@ -306,7 +307,12 @@ export default function DocumentEditPage() {
   return (
     <Box>
       <Suspense fallback={<CircularProgress />}>
-        <SetPowerSyncParams />
+        <SetPowerSyncParams>
+          {/* TODO: not resetting when we update the params. */}
+          <GuardBySync>
+            <DocumentEditSection />
+          </GuardBySync>
+        </SetPowerSyncParams>
       </Suspense>
     </Box>
   );
