@@ -18,7 +18,7 @@ export default function EntryPage() {
   const navigate = useNavigate();
 
   const navigateToMainView = () => {
-    if (connector?.currentSession) {
+    if (connector?.isLoggedInAsUser()) {
       navigate(DEFAULT_ENTRY_ROUTE);
     }
   };
@@ -35,7 +35,7 @@ export default function EntryPage() {
           /**
            * Redirect if on the entry view
            */
-          if (connector.currentSession) {
+          if (connector.isLoggedInAsUser()) {
             navigate(DEFAULT_ENTRY_ROUTE);
           } else {
             navigate(LOGIN_ROUTE);

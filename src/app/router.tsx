@@ -16,10 +16,11 @@ export const REGISTER_ROUTE = '/auth/register';
 export const SQL_CONSOLE_ROUTE = '/sql-console';
 
 interface AuthGuardProps {
+  allowAnon?: boolean;
   children: JSX.Element;
 }
 
-const AuthGuard = ({ children }: AuthGuardProps) => {
+const AuthGuard = ({ children, allowAnon }: AuthGuardProps) => {
   const connector = useSupabase();
 
   const navigate = useNavigate();
@@ -36,8 +37,14 @@ const AuthGuard = ({ children }: AuthGuardProps) => {
     });
 
     const loginGuard = () => {
-      if (!connector.currentSession) {
-        navigate(LOGIN_ROUTE);
+      if (allowAnon) {
+        if (!connector.currentSession) {
+          void connector.anonLogin();
+        }
+      } else {
+        if (!connector.isLoggedInAsUser()) {
+          navigate(LOGIN_ROUTE);
+        }
       }
     };
     if (connector.ready) {
@@ -74,24 +81,34 @@ export const router = createBrowserRouter([
   },
   {
     element: (
-      <AuthGuard>
-        <ViewsLayout>
-          <Outlet />
-        </ViewsLayout>
-      </AuthGuard>
+      <ViewsLayout>
+        <Outlet />
+      </ViewsLayout>
     ),
     children: [
       {
         path: TODO_LISTS_ROUTE,
-        element: <TodoListsPage />
+        element: (
+          <AuthGuard>
+            <TodoListsPage />
+          </AuthGuard>
+        )
       },
       {
         path: TODO_EDIT_ROUTE,
-        element: <DocumentEditPage />
+        element: (
+          <AuthGuard allowAnon>
+            <DocumentEditPage />
+          </AuthGuard>
+        )
       },
       {
         path: SQL_CONSOLE_ROUTE,
-        element: <SQLConsolePage />
+        element: (
+          <AuthGuard>
+            <SQLConsolePage />
+          </AuthGuard>
+        )
       }
     ]
   }

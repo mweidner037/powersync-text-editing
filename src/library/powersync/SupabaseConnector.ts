@@ -85,6 +85,19 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
     this.updateSession(session);
   }
 
+  async anonLogin() {
+    const {
+      data: { session },
+      error
+    } = await this.client.auth.signInAnonymously();
+
+    if (error) {
+      throw error;
+    }
+
+    this.updateSession(session);
+  }
+
   async fetchCredentials() {
     const {
       data: { session },
@@ -166,5 +179,9 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
       return;
     }
     this.iterateListeners((cb) => cb.sessionStarted?.(session));
+  }
+
+  isLoggedInAsUser() {
+    return !!this.currentSession && !this.currentSession.user.is_anonymous;
   }
 }
