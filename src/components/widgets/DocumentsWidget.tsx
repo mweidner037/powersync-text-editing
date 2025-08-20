@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ListItemWidget } from './ListItemWidget';
 import { LISTS_TABLE, ListRecord, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { TODO_LISTS_ROUTE } from '@/app/router';
+import { useSupabase } from '../providers/SystemProvider';
 
 export type DocumentsWidgetProps = {
   selectedId?: string;
@@ -14,15 +15,21 @@ const description = (total: number, completed: number = 0) => {
 };
 
 export function DocumentsWidget(props: DocumentsWidgetProps) {
+  const connector = useSupabase();
   const powerSync = usePowerSync();
   const navigate = useNavigate();
 
-  const { data: listRecords, isLoading } = useQuery<ListRecord>(`
+  const userId = connector?.currentSession?.user.id;
+
+  const { data: listRecords, isLoading } = useQuery<ListRecord>(
+    `
       SELECT
         ${LISTS_TABLE}.*
       FROM
         ${LISTS_TABLE}
-      `);
+      WHERE owner_id = ?`,
+    [userId]
+  );
 
   const deleteList = async (id: string) => {
     await powerSync.writeTransaction(async (tx) => {

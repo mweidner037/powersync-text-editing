@@ -57,7 +57,7 @@ const AuthGuard = ({ children, allowAnon }: AuthGuardProps) => {
       });
       return () => l?.();
     }
-  }, []);
+  }, [allowAnon]);
   return children;
 };
 
