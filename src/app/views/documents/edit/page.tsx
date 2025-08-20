@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useEffect, useRef } from 'react';
+import { MutableRefObject, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { LISTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -31,12 +31,57 @@ interface UserData {
   color: string;
 }
 
+const SetPowerSyncParams = () => {
+  const powerSync = usePowerSync();
+  const supabase = useSupabase();
+  const { id: docID } = useParams();
+
+  // TODO: suspense instead
+  const [hasParams, setHasParams] = useState(false);
+
+  useEffect(() => {
+    setHasParams(false);
+
+    void (async () => {
+      if (supabase) {
+        await powerSync.disconnect();
+        // Pass docID as a param so we sync its bucket, even if it's not one of our documents
+        // (including when we are logged in anonymously).
+        await powerSync.connect(supabase, { params: { current_doc_id: docID } });
+        setHasParams(true);
+      }
+    })();
+  }, [docID, supabase]);
+
+  if (hasParams) {
+    return <DocumentEditSection />;
+  } else {
+    return 'Connecting...';
+  }
+};
+
 const DocumentEditSection = () => {
   // PowerSync queries
 
   const powerSync = usePowerSync();
   const supabase = useSupabase();
   const { id: docID } = useParams();
+
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    void (async () => {
+      if (supabase) {
+        await powerSync.disconnect();
+        console.log('disconnected');
+        // Pass docID as a param so we sync its bucket, even if it's not one of our documents
+        // (including when we are logged in anonymously).
+        await powerSync.connect(supabase, { params: { current_doc_id: docID } });
+        console.log('connected');
+        setVersion(version + 1);
+      }
+    })();
+  }, [docID, supabase]);
 
   const {
     data: [listRecord]
@@ -261,7 +306,7 @@ export default function DocumentEditPage() {
   return (
     <Box>
       <Suspense fallback={<CircularProgress />}>
-        <DocumentEditSection />
+        <SetPowerSyncParams />
       </Suspense>
     </Box>
   );
