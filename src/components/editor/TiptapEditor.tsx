@@ -1,4 +1,4 @@
-import { MutableRefObject, useEffect, useRef } from 'react';
+import { MutableRefObject, useRef } from 'react';
 import { SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { Editor, EditorContent, useEditor } from '@tiptap/react';
 import { buildTiptapExtensions } from '@/library/tiptap/extensions';
@@ -8,11 +8,8 @@ import {
   ElementIdGenerator,
   updateToSteps
 } from '@/library/tiptap/step_converter';
-import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
+import { selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
-import { v4 as uuidv4 } from 'uuid';
-import { randomName, randomColor } from '@/library/utils';
-import _ from 'lodash';
 import { usePowerSync, useQuery } from '@powersync/react';
 import { useSupabase } from '../providers/SystemProvider';
 import { Box, Button } from '@mui/material';
@@ -21,47 +18,32 @@ import { useReducedTable } from '@/library/powersync/use_reduced_table';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import { TextSelection } from '@tiptap/pm/state';
 import { IdList } from 'articulated';
+import { SharedUserData, useSharedCursors } from './shared-cursors';
+import { randomName, randomColor } from '@/library/utils';
+import { v4 as uuidv4 } from 'uuid';
 
-interface UserData {
-  name: string;
-  color: string;
-}
+import './styles.css';
 
-export interface PowerSyncTextEditorProps {
+export interface TiptapEditorProps {
   docID: string;
 }
 
-export const PowerSyncTextEditor = ({ docID }: PowerSyncTextEditorProps) => {
+export const TiptapEditor = ({ docID }: TiptapEditorProps) => {
   const powerSync = usePowerSync();
   const supabase = useSupabase();
 
-  // Our shared cursor
-
-  const clientIdRef = useRef('');
-  const userDataRef = useRef<UserData>({ name: '', color: '' });
-  if (!clientIdRef.current) {
+  const clientIDRef = useRef('');
+  const userDataRef = useRef<SharedUserData>({ name: '', color: '' });
+  if (!clientIDRef.current) {
     // This needs to unique to the editor instance - can't be userId.
     const clientId = uuidv4();
-    clientIdRef.current = clientId;
+    clientIDRef.current = clientId;
     userDataRef.current = {
       // TODO: Get name from account?
       name: randomName(),
       color: randomColor()
     };
   }
-
-  useEffect(() => {
-    void powerSync.execute(
-      `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at, user_data, selection)
-    VALUES (?, ?, (datetime('now', '+30 seconds')), ?, ?)`,
-      [clientIdRef.current, docID, JSON.stringify(userDataRef.current), null]
-    );
-
-    return () => {
-      // Best-effort delete. If this fails, the row will expire shortly.
-      void powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE id = ?`, [clientIdRef.current]);
-    };
-  }, []);
 
   // PowerSync mutations
 
@@ -93,18 +75,11 @@ export const PowerSyncTextEditor = ({ docID }: PowerSyncTextEditorProps) => {
     await powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE doc_id = ?`, [docID!]);
   };
 
-  const updatedSharedCursor = _.throttle(async (selection: IdSelection) => {
-    await powerSync.execute(
-      `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
-      [JSON.stringify(selection), clientIdRef.current]
-    );
-  }, 500);
-
   // Tiptap setup
 
   const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator());
   const editor = useEditor({
-    extensions: buildTiptapExtensions(clientIdRef.current),
+    extensions: buildTiptapExtensions(clientIDRef.current),
     // We update the editor's state each render with a tr, so turn this off
     // to prevent an infinite rerender loop.
     shouldRerenderOnTransaction: false,
@@ -118,20 +93,10 @@ export const PowerSyncTextEditor = ({ docID }: PowerSyncTextEditorProps) => {
       editor.commands.setIdListState(newIdList);
 
       if (steps.length > 0) void doUpdate(steps);
-    },
-    onSelectionUpdate({ transaction, editor }) {
-      if (transaction.getMeta('ourRemoteUpdate')) return;
-
-      const { isValid, idList } = getIdListState(editor.state);
-      if (!isValid) return;
-      const idSelection = selectionToIds(editor.state.selection, idList);
-
-      void updatedSharedCursor(idSelection);
-
-      // TODO: also null/set on focus in/out, like y-cursor.
-      // TODO: Hearbeat
     }
   });
+
+  useSharedCursors(editor, docID, clientIDRef.current, userDataRef.current);
 
   return (
     <Box>

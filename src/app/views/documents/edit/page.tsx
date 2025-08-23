@@ -5,10 +5,9 @@ import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { DOCUMENTS_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
-import './styles.css';
 import { SetPowerSyncParams } from '@/components/widgets/SetPowerSyncParams';
 import { GuardBySync } from '@/components/widgets/GuardBySync';
-import { PowerSyncTextEditor } from '@/components/editor/PowerSyncTextEditor';
+import { TiptapEditor } from '@/components/editor/TiptapEditor';
 
 export default function DocumentEditPage() {
   const { id: docID } = useParams();
@@ -49,7 +48,7 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
 
   return (
     <NavigationPage title={`Document: ${documentRecord.name}`}>
-      <PowerSyncTextEditor docID={docID} />
+      <TiptapEditor docID={docID} />
     </NavigationPage>
   );
 };
