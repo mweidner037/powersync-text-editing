@@ -1,7 +1,8 @@
 import { SHARED_CURSORS_TABLE } from '@/library/powersync/AppSchema';
 import { getIdListState } from '@/library/tiptap/plugins/id-list-state';
+import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import { IdSelection, selectionToIds } from '@/library/tiptap/selection';
-import { usePowerSync } from '@powersync/react';
+import { usePowerSync, useQuery } from '@powersync/react';
 import { Editor, EditorEvents } from '@tiptap/react';
 import _ from 'lodash';
 import { useEffect } from 'react';
@@ -14,7 +15,9 @@ export interface SharedUserData {
 export function useSharedCursors(editor: Editor, docID: string, clientID: string, userData: SharedUserData) {
   const powerSync = usePowerSync();
 
+  // ------------
   // Our shared cursor
+  // ------------
 
   useEffect(() => {
     void powerSync.execute(
@@ -55,4 +58,29 @@ export function useSharedCursors(editor: Editor, docID: string, clientID: string
       editor.off('selectionUpdate', onSelectionUpdate);
     };
   }, [editor]);
+
+  // ------------
+  // Display shared cursors
+  // ------------
+
+  // TODO: Need to rerun this on a timer, not just when data changes (since now() also changes).
+  // Could do that always to debounce as well.
+  const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
+    `
+    SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}
+    WHERE doc_id=?
+    AND datetime('now') < expires_at`,
+    [docID]
+  );
+  // TODO: clock sync issues. Currently we're trusting all clients to be in sync.
+  // Setting a server expires_at would need a trigger and still won't be in sync with clients.
+
+  const cursors = cursorRows.map(
+    ({ id, user_data, selection }): SharedCursor => ({
+      clientId: id,
+      selection: selection ? JSON.parse(selection) : null,
+      user: JSON.parse(user_data)
+    })
+  );
+  editor.commands.setSharedCursors(cursors);
 }
