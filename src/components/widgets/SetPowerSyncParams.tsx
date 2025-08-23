@@ -34,6 +34,9 @@ export type SetPowerSyncParamsProps = {
  *
  * The component suspends until PowerSync has reconnected with these parameters,
  * afterwards rendering the children.
+ *
+ * Warning: Since we don't actually have access to powerSync.params, it's possible
+ * for another powerSync.connect() call to overwrite them without us noticing.
  */
 export const SetPowerSyncParams = ({ connector, params, children }: SetPowerSyncParamsProps) => {
   const powerSync = usePowerSync();

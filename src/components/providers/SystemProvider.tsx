@@ -16,29 +16,23 @@ export const db = new PowerSyncDatabase({
   }
 });
 
-export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
-  const [connector] = React.useState(new SupabaseConnector());
-  const [powerSync] = React.useState(db);
+let connector: SupabaseConnector | null = null;
 
-  React.useEffect(() => {
+export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
+  const powerSync = db;
+
+  if (!connector) {
+    connector = new SupabaseConnector();
     const logger = createBaseLogger();
     logger.useDefaults(); // eslint-disable-line
     logger.setLevel(LogLevel.DEBUG);
     // For console testing purposes
     (window as any)._powersync = powerSync;
 
-    powerSync.init();
-    const l = connector.registerListener({
-      initialized: () => {},
-      sessionStarted: () => {
-        powerSync.connect(connector);
-      }
-    });
-
     connector.init();
-
-    return () => l?.();
-  }, [powerSync, connector]);
+    powerSync.init();
+    powerSync.connect(connector);
+  }
 
   return (
     <Suspense fallback={<CircularProgress />}>

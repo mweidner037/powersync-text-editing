@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, Suspense, useEffect, useRef, useState } from 'react';
+import { MutableRefObject, Suspense, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { DOCUMENTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -26,6 +26,7 @@ import { randomName, randomColor } from '@/library/utils';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import _ from 'lodash';
 import { SetPowerSyncParams } from '@/components/widgets/SetPowerSyncParams';
+import { GuardBySync } from '@/components/widgets/GuardBySync';
 
 interface UserData {
   name: string;
@@ -38,22 +39,6 @@ const DocumentEditSection = () => {
   const powerSync = usePowerSync();
   const supabase = useSupabase();
   const { id: docID } = useParams();
-
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    void (async () => {
-      if (supabase) {
-        await powerSync.disconnect();
-        console.log('disconnected');
-        // Pass docID as a param so we sync its bucket, even if it's not one of our documents
-        // (including when we are logged in anonymously).
-        await powerSync.connect(supabase, { params: { current_doc_id: docID } });
-        console.log('connected');
-        setVersion(version + 1);
-      }
-    })();
-  }, [docID, supabase]);
 
   const {
     data: [documentRecord]
@@ -286,10 +271,12 @@ export default function DocumentEditPage() {
   return (
     <Box>
       <Suspense fallback={<CircularProgress />}>
+        {/* Pass docID as a param so we sync its bucket, even if it's not one of our documents
+            (including when we are logged in anonymously). */}
         <SetPowerSyncParams connector={supabase} params={{ current_doc_id: docID }}>
-          {/* TODO: Wait until synced, so we don't show the "no document" message.
-              GuardBySync does not work for that. */}
-          <DocumentEditSection />
+          <GuardBySync>
+            <DocumentEditSection />
+          </GuardBySync>
         </SetPowerSyncParams>
       </Suspense>
     </Box>
