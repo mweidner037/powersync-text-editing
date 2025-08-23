@@ -18,6 +18,8 @@ export interface TiptapEditorProps {
 export const TiptapEditor = ({ docID }: TiptapEditorProps) => {
   const powerSync = usePowerSync();
 
+  // Local client info for shared cursors
+
   const clientIDRef = useRef('');
   const userDataRef = useRef<SharedUserData>({ name: '', color: '' });
   if (!clientIDRef.current) {
@@ -39,6 +41,7 @@ export const TiptapEditor = ({ docID }: TiptapEditorProps) => {
   };
 
   // Tiptap setup
+
   const editor = useEditor({
     extensions: buildTiptapExtensions(clientIDRef.current),
     // We update the editor's state each render with a tr, so turn this off
@@ -48,6 +51,8 @@ export const TiptapEditor = ({ docID }: TiptapEditorProps) => {
 
   usePowerSyncTextState(editor, docID);
   useSharedCursors(editor, docID, clientIDRef.current, userDataRef.current);
+
+  // Render
 
   return (
     <Box>
