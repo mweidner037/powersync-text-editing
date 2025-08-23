@@ -287,7 +287,8 @@ export default function DocumentEditPage() {
     <Box>
       <Suspense fallback={<CircularProgress />}>
         <SetPowerSyncParams connector={supabase} params={{ current_doc_id: docID }}>
-          {/* TODO: Wait until synced, so we don't show the "no document" message. */}
+          {/* TODO: Wait until synced, so we don't show the "no document" message.
+              GuardBySync does not work for that. */}
           <DocumentEditSection />
         </SetPowerSyncParams>
       </Suspense>
