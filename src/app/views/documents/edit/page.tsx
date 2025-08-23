@@ -19,7 +19,7 @@ import {
 import { IdList } from 'articulated';
 import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
-import MenuBar from './MenuBar';
+import TiptapMenuBar from './TiptapMenuBar';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
 import { v4 as uuidv4 } from 'uuid';
 import { randomName, randomColor } from '@/library/utils';
@@ -197,7 +197,7 @@ const DocumentEditSection = () => {
   return (
     <NavigationPage title={`Document: ${documentRecord.name}`}>
       <Box>
-        <MenuBar editor={editor} />
+        <TiptapMenuBar editor={editor} />
         <EditorContent editor={editor} />
         {editor ? (
           <>

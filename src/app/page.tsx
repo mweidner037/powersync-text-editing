@@ -10,8 +10,8 @@ export type LoginFormParams = {
 };
 
 /**
- * This page shows a loading spinner we detect a session
- * and redirect either to the app or auth flow.
+ * This page shows a loading spinner until we detect a session
+ * and redirects either to the app or auth flow.
  */
 export default function EntryPage() {
   const connector = useSupabase();
