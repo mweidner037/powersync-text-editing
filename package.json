@@ -1,6 +1,6 @@
 {
-  "name": "react-supabase-todolist",
-  "version": "0.3.16",
+  "name": "powersync-text-editing",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "vite",

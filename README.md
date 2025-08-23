@@ -1,24 +1,17 @@
-# PowerSync + Supabase Web Demo: Todo List
+# PowerSync Text Editing Demo
 
 ## Overview
 
-Demo app demonstrating use of the [PowerSync SDK for Web](https://www.npmjs.com/package/@powersync/web) together with Supabase.
+Demo app demonstrating use of the [PowerSync SDK for Web](https://www.npmjs.com/package/@powersync/web) together with Supabase for collaborative text-editing.
 
-A step-by-step guide on Supabase<>PowerSync integration is available [here](https://docs.powersync.com/integration-guides/supabase-+-powersync).
+A step-by-step guide on Supabase<>PowerSync integration is available [here](https://docs.powersync.com/integration-guides/supabase-+-powersync). Read about the text-editing strategy [here](https://mattweidner.com/2025/05/21/text-without-crdts.html).
 
 ## Getting Started
 
-In the repo directory, use [pnpm](https://pnpm.io/installation) to install dependencies:
+Use [pnpm](https://pnpm.io/installation) to install dependencies:
 
 ```bash
 pnpm install
-pnpm build:packages
-```
-
-Then switch into the demo's directory:
-
-```bash
-cd demos/react-supabase-todolist
 ```
 
 Set up the Environment variables: Copy the `.env.local.template` file:

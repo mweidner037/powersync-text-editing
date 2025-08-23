@@ -1,17 +1,13 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { List } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { ListItemWidget } from './ListItemWidget';
-import { LISTS_TABLE, ListRecord, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
-import { TODO_LISTS_ROUTE } from '@/app/router';
+import { DocumentItemWidget } from './DocumentItemWidget';
+import { DOCUMENTS_TABLE, DocumentRecord, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
+import { DOCUMENTS_ROUTE } from '@/app/router';
 import { useSupabase } from '../providers/SystemProvider';
 
 export type DocumentsWidgetProps = {
   selectedId?: string;
-};
-
-const description = (total: number, completed: number = 0) => {
-  return `${total - completed} pending, ${completed} completed`;
 };
 
 export function DocumentsWidget(props: DocumentsWidgetProps) {
@@ -21,22 +17,22 @@ export function DocumentsWidget(props: DocumentsWidgetProps) {
 
   const userId = connector?.currentSession?.user.id;
 
-  const { data: listRecords, isLoading } = useQuery<ListRecord>(
+  const { data: documentRecords, isLoading } = useQuery<DocumentRecord>(
     `
       SELECT
-        ${LISTS_TABLE}.*
+        ${DOCUMENTS_TABLE}.*
       FROM
-        ${LISTS_TABLE}
+        ${DOCUMENTS_TABLE}
       WHERE owner_id = ?`,
     [userId]
   );
 
-  const deleteList = async (id: string) => {
+  const deleteDocument = async (id: string) => {
     await powerSync.writeTransaction(async (tx) => {
-      // Delete associated todos
+      // Delete associated updates
       await tx.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [id]);
-      // Delete list record
-      await tx.execute(`DELETE FROM ${LISTS_TABLE} WHERE id = ?`, [id]);
+      // Delete document record
+      await tx.execute(`DELETE FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [id]);
     });
   };
 
@@ -46,15 +42,14 @@ export function DocumentsWidget(props: DocumentsWidgetProps) {
 
   return (
     <List dense={false}>
-      {listRecords.map((r) => (
-        <ListItemWidget
+      {documentRecords.map((r) => (
+        <DocumentItemWidget
           key={r.id}
           title={r.name ?? ''}
-          description={'TODO: description'}
           selected={r.id == props.selectedId}
-          onDelete={() => deleteList(r.id)}
+          onDelete={() => deleteDocument(r.id)}
           onPress={() => {
-            navigate(TODO_LISTS_ROUTE + '/' + r.id);
+            navigate(DOCUMENTS_ROUTE + '/' + r.id);
           }}
         />
       ))}

@@ -4,26 +4,25 @@ import {
   IconButton,
   ListItemAvatar,
   Avatar,
-  ListItemText,
   Box,
   Paper,
   styled,
-  ListItemButton
+  ListItemButton,
+  ListItemText
 } from '@mui/material';
 
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import RightIcon from '@mui/icons-material/ArrowRightAlt';
 import ListIcon from '@mui/icons-material/ListAltOutlined';
 
-export type ListItemWidgetProps = {
+export type DocumentItemWidgetProps = {
   title: string;
-  description: string;
   selected?: boolean;
   onDelete: () => void;
   onPress: () => void;
 };
 
-export const ListItemWidget: React.FC<ListItemWidgetProps> = (props) => {
+export const DocumentItemWidget: React.FC<DocumentItemWidgetProps> = (props) => {
   return (
     <S.MainPaper elevation={1}>
       <ListItem
@@ -35,8 +34,7 @@ export const ListItemWidget: React.FC<ListItemWidgetProps> = (props) => {
               aria-label="delete"
               onClick={(event) => {
                 props.onDelete();
-              }}
-            >
+              }}>
               <DeleteIcon />
             </IconButton>
             <IconButton
@@ -44,25 +42,22 @@ export const ListItemWidget: React.FC<ListItemWidgetProps> = (props) => {
               aria-label="proceed"
               onClick={(event) => {
                 props.onPress();
-              }}
-            >
+              }}>
               <RightIcon />
             </IconButton>
           </Box>
-        }
-      >
+        }>
         <ListItemButton
           onClick={(event) => {
             props.onPress();
           }}
-          selected={props.selected}
-        >
+          selected={props.selected}>
           <ListItemAvatar>
             <Avatar>
               <ListIcon />
             </Avatar>
-          </ListItemAvatar>
-          <ListItemText primary={props.title} secondary={props.description} />
+          </ListItemAvatar>{' '}
+          <ListItemText primary={props.title} />
         </ListItemButton>
       </ListItem>
     </S.MainPaper>

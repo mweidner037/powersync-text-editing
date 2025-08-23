@@ -4,7 +4,7 @@ import Fab from '@mui/material/Fab';
 import { MutableRefObject, ReactNode, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
-import { LISTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
+import { DOCUMENTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
 import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import './styles.css';
@@ -85,8 +85,8 @@ const DocumentEditSection = () => {
   }, [docID, supabase]);
 
   const {
-    data: [listRecord]
-  } = useQuery<{ name: string }>(`SELECT name FROM ${LISTS_TABLE} WHERE id = ?`, [docID]);
+    data: [documentRecord]
+  } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID]);
 
   // Our shared cursor
 
@@ -186,7 +186,7 @@ const DocumentEditSection = () => {
 
   // Render
 
-  if (!listRecord) {
+  if (!documentRecord) {
     return (
       <Box>
         <Typography>No matching document found, please navigate back...</Typography>
@@ -195,7 +195,7 @@ const DocumentEditSection = () => {
   }
 
   return (
-    <NavigationPage title={`Document: ${listRecord.name}`}>
+    <NavigationPage title={`Document: ${documentRecord.name}`}>
       <Box>
         <MenuBar editor={editor} />
         <EditorContent editor={editor} />

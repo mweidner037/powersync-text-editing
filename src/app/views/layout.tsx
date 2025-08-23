@@ -26,7 +26,7 @@ import { usePowerSync, useStatus } from '@powersync/react';
 import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { useNavigationPanel } from '@/components/navigation/NavigationPanelContext';
-import { LOGIN_ROUTE, SQL_CONSOLE_ROUTE, TODO_LISTS_ROUTE } from '@/app/router';
+import { LOGIN_ROUTE, SQL_CONSOLE_ROUTE, DOCUMENTS_ROUTE } from '@/app/router';
 
 export default function ViewsLayout({ children }: { children: React.ReactNode }) {
   const powerSync = usePowerSync();
@@ -45,8 +45,8 @@ export default function ViewsLayout({ children }: { children: React.ReactNode })
         icon: () => <TerminalIcon />
       },
       {
-        path: TODO_LISTS_ROUTE,
-        title: 'TODO Lists',
+        path: DOCUMENTS_ROUTE,
+        title: 'Documents',
         icon: () => <ChecklistRtlIcon />
       },
       {
@@ -72,8 +72,7 @@ export default function ViewsLayout({ children }: { children: React.ReactNode })
             color="inherit"
             aria-label="menu"
             sx={{ mr: 2 }}
-            onClick={() => setOpenDrawer(!openDrawer)}
-          >
+            onClick={() => setOpenDrawer(!openDrawer)}>
             <MenuIcon />
           </IconButton>
           <Box sx={{ flexGrow: 1 }}>
@@ -95,8 +94,7 @@ export default function ViewsLayout({ children }: { children: React.ReactNode })
                   await item.beforeNavigate?.();
                   navigate(item.path);
                   setOpenDrawer(false);
-                }}
-              >
+                }}>
                 <ListItemIcon>{item.icon()}</ListItemIcon>
                 <ListItemText primary={item.title} />
               </ListItemButton>
