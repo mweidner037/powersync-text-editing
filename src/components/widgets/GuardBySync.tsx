@@ -5,8 +5,6 @@ import { FC, ReactNode } from 'react';
 /**
  * A component that renders its child if the database has been synced at least once and shows
  * a progress indicator otherwise.
- *
- * TODO: Need a modified version for the reconnect logic.
  */
 export const GuardBySync: FC<{ children: ReactNode; priority?: number }> = ({ children, priority }) => {
   const status = useStatus();

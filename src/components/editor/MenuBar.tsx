@@ -2,7 +2,7 @@ import { Editor, useEditorState } from '@tiptap/react';
 
 // Tiptap StarterKit menu bar, modified from https://tiptap.dev/docs/editor/extensions/functionality/starterkit
 
-export default function TiptapMenuBar({ editor }: { editor: Editor }) {
+export default function MenuBar({ editor }: { editor: Editor }) {
   // Read the current editor's state, and re-render the component when it changes
   const editorState = useEditorState({
     editor,

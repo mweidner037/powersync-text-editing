@@ -1,7 +1,7 @@
 import { usePowerSync, useQuery } from '@powersync/react';
 import { Box, Button, CircularProgress, Typography, styled } from '@mui/material';
 import Fab from '@mui/material/Fab';
-import { MutableRefObject, ReactNode, Suspense, useEffect, useRef, useState } from 'react';
+import { MutableRefObject, Suspense, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { DOCUMENTS_TABLE, SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
@@ -19,47 +19,18 @@ import {
 import { IdList } from 'articulated';
 import { IdSelection, selectionFromIds, selectionToIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
-import TiptapMenuBar from './TiptapMenuBar';
+import MenuBar from '../../../../components/editor/MenuBar';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
 import { v4 as uuidv4 } from 'uuid';
 import { randomName, randomColor } from '@/library/utils';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import _ from 'lodash';
-import { GuardBySync } from '@/components/widgets/GuardBySync';
+import { SetPowerSyncParams } from '@/components/widgets/SetPowerSyncParams';
 
 interface UserData {
   name: string;
   color: string;
 }
-
-const SetPowerSyncParams = ({ children }: { children: ReactNode }) => {
-  const powerSync = usePowerSync();
-  const supabase = useSupabase();
-  const { id: docID } = useParams();
-
-  // TODO: suspense instead
-  const [hasParams, setHasParams] = useState(false);
-
-  useEffect(() => {
-    setHasParams(false);
-
-    void (async () => {
-      if (supabase) {
-        await powerSync.disconnect();
-        // Pass docID as a param so we sync its bucket, even if it's not one of our documents
-        // (including when we are logged in anonymously).
-        await powerSync.connect(supabase, { params: { current_doc_id: docID } });
-        setHasParams(true);
-      }
-    })();
-  }, [docID, supabase]);
-
-  if (hasParams) {
-    return children;
-  } else {
-    return 'Connecting...';
-  }
-};
 
 const DocumentEditSection = () => {
   // PowerSync queries
@@ -197,7 +168,7 @@ const DocumentEditSection = () => {
   return (
     <NavigationPage title={`Document: ${documentRecord.name}`}>
       <Box>
-        <TiptapMenuBar editor={editor} />
+        <MenuBar editor={editor} />
         <EditorContent editor={editor} />
         {editor ? (
           <>
@@ -304,14 +275,20 @@ function SharedCursorQuery({ docID, editor }: { docID: string; editor: Editor })
 }
 
 export default function DocumentEditPage() {
+  const { id: docID } = useParams();
+
+  const supabase = useSupabase();
+  if (!supabase) {
+    console.error(`No Supabase connector has been created yet.`);
+    return;
+  }
+
   return (
     <Box>
       <Suspense fallback={<CircularProgress />}>
-        <SetPowerSyncParams>
-          {/* TODO: not resetting when we update the params. */}
-          <GuardBySync>
-            <DocumentEditSection />
-          </GuardBySync>
+        <SetPowerSyncParams connector={supabase} params={{ current_doc_id: docID }}>
+          {/* TODO: Wait until synced, so we don't show the "no document" message. */}
+          <DocumentEditSection />
         </SetPowerSyncParams>
       </Suspense>
     </Box>
