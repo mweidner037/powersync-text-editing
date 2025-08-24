@@ -1,8 +1,9 @@
 import { column, Schema, Table } from '@powersync/web';
+import { PRESENCE_TABLE_SCHEMA } from './usePresence';
 
 export const DOCUMENTS_TABLE = 'documents';
 export const TEXT_UPDATES_TABLE = 'text_updates';
-export const SHARED_CURSORS_TABLE = 'shared_cursors';
+export const PRESENCE_TABLE = 'presence';
 
 const text_updates = new Table(
   {
@@ -17,12 +18,7 @@ const text_updates = new Table(
   { indexes: { documentIndex: ['doc_id'] } }
 );
 
-const shared_cursors = new Table({
-  doc_id: column.text,
-  expires_at: column.text,
-  user_data: column.text,
-  selection: column.text
-});
+const presence = new Table(PRESENCE_TABLE_SCHEMA);
 
 const documents = new Table({
   created_at: column.text,
@@ -32,7 +28,7 @@ const documents = new Table({
 
 export const AppSchema = new Schema({
   text_updates,
-  shared_cursors,
+  presence,
   documents
 });
 
@@ -40,4 +36,4 @@ export type Database = (typeof AppSchema)['types'];
 
 export type TextUpdateRecord = Database[typeof TEXT_UPDATES_TABLE];
 export type DocumentRecord = Database[typeof DOCUMENTS_TABLE];
-export type SharedCursorRecord = Database[typeof SHARED_CURSORS_TABLE];
+export type PresenceRecord = Database[typeof PRESENCE_TABLE];

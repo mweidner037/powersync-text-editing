@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { SHARED_CURSORS_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
+import { PRESENCE_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { buildTiptapExtensions } from '@/library/tiptap/extensions';
 import { usePowerSync } from '@powersync/react';
@@ -37,7 +37,7 @@ export const TiptapEditor = ({ docID }: TiptapEditorProps) => {
 
   const clear = async () => {
     await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
-    await powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE doc_id = ?`, [docID!]);
+    await powerSync.execute(`DELETE FROM ${PRESENCE_TABLE} WHERE doc_id = ?`, [docID!]);
   };
 
   // Tiptap setup

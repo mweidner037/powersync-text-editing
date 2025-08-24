@@ -1,4 +1,4 @@
-import { SHARED_CURSORS_TABLE } from '@/library/powersync/AppSchema';
+import { PRESENCE_TABLE } from '@/library/powersync/AppSchema';
 import { getIdListState } from '@/library/tiptap/plugins/id-list-state';
 import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import { IdSelection, selectionToIds } from '@/library/tiptap/selection';
@@ -21,20 +21,20 @@ export function useSharedCursors(editor: Editor, docID: string, clientID: string
 
   useEffect(() => {
     void powerSync.execute(
-      `INSERT INTO ${SHARED_CURSORS_TABLE} (id, doc_id, expires_at, user_data, selection)
+      `INSERT INTO ${PRESENCE_TABLE} (id, doc_id, expires_at, user_data, selection)
       VALUES (?, ?, (datetime('now', '+30 seconds')), ?, ?)`,
       [clientID, docID, JSON.stringify(userData), null]
     );
 
     return () => {
       // Best-effort delete. If this fails, the row will expire shortly.
-      void powerSync.execute(`DELETE FROM ${SHARED_CURSORS_TABLE} WHERE id = ?`, [clientID]);
+      void powerSync.execute(`DELETE FROM ${PRESENCE_TABLE} WHERE id = ?`, [clientID]);
     };
   }, [editor, docID, clientID, JSON.stringify(userData)]);
 
   const updatedSharedCursor = _.throttle(async (selection: IdSelection) => {
     await powerSync.execute(
-      `UPDATE ${SHARED_CURSORS_TABLE} SET expires_at = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
+      `UPDATE ${PRESENCE_TABLE} SET expires_at = (datetime('now', '+30 seconds')), selection = ? WHERE id = ?`,
       [JSON.stringify(selection), clientID]
     );
   }, 500);
@@ -67,7 +67,7 @@ export function useSharedCursors(editor: Editor, docID: string, clientID: string
   // Could do that always to debounce as well.
   const { data: cursorRows } = useQuery<{ id: string; user_data: string; selection: string | null }>(
     `
-    SELECT id, user_data, selection FROM ${SHARED_CURSORS_TABLE}
+    SELECT id, user_data, selection FROM ${PRESENCE_TABLE}
     WHERE doc_id=?
     AND datetime('now') < expires_at`,
     [docID]
