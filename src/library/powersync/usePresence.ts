@@ -35,9 +35,9 @@ export const PRESENCE_TABLE_SCHEMA = {
   user_id: column.text,
   /** Must be set to true (1) on the backend DB. Null for optimistic local rows. */
   is_remote: column.integer,
-  /** SQLite datetime string. */
-  expires_at_local: column.text,
-  /** data passed to usePresence's setPresence function. */
+  /** Unix timestamp (seconds). Not meaningful on the server due to clock drift. */
+  expires_at_local: column.integer,
+  /** data passed to usePresence's setPresence function. Usually, you'll use a JSON string here. */
   data: column.text,
   /** Positive integer. */
   version: column.integer
@@ -48,15 +48,15 @@ export const PRESENCE_TABLE_SCHEMA = {
  * Use this to show who is present in a shared document and optional info
  * about their state (e.g., mouse or cursor positions).
  *
+ * The `tableName` table's schema must be `PRESENCE_TABLE_SCHEMA`.
+ *
  * This function will make a best-effort attempt to delete presence rows
  * when unmounted; however, that often fails to upload when a user exits
  * the app or goes offline. You can mitigate this by:
- * 1. Deleting each row from your backend DB 30 seconds after it is inserted (e.g., using a Postgres trigger).
- * 2. Skipping rows satisfying `datetime('now') >= expires_at_local` when uploading to your backend,
- * in case they are from a previous offline session.
- * 3. If possible, deleting all rows for a clientID when that client disconnects from your backend.
- *
- * The `tableName` table's schema must be `PRESENCE_TABLE_SCHEMA`.
+ * 1. Deleting all rows for a clientID when that client disconnects from your backend.
+ * 2. If that is not possible: Deleting each row from your backend 30 seconds after it is inserted (e.g., using pg_cron).
+ * 3. Skipping rows satisfying `Date.now() >= expires_at_local * 1000` when uploading to your backend,
+ * in case they are from an old offline session.
  *
  * Returns:
  * - `setPresenceData`: Function to set the current client's presence data.
@@ -88,7 +88,7 @@ export function usePresence(
       versionRef.current++;
       await powerSync.execute(
         `INSERT INTO ${tableName} (id, client_id, room_id, user_id, expires_at_local, data, version)
-                VALUES (uuid(), ?, ?, ?, (datetime('now', '+30 seconds')), ?, version)`,
+                VALUES (uuid(), ?, ?, ?, (unixepoch('now', '+30 seconds')), ?, ?)`,
         [clientID, roomID, userID, data, versionRef.current]
       );
     };
@@ -133,7 +133,7 @@ export function usePresence(
     user_id: string;
     data: string;
     is_remote: number | null;
-    expires_at_local: string;
+    expires_at_local: number;
   }>(
     `
     SELECT client_id, user_id, data, is_remote, expires_at_local
@@ -141,7 +141,7 @@ export function usePresence(
     WHERE room_id = ? AND client_id != ?
       AND (
         is_remote OR
-        (is_remote IS NULL AND datetime('now') < expires_at_local)
+        (is_remote IS NULL AND unixepoch('now') < expires_at_local)
       )
       AND version = (
         SELECT MAX(version) 
@@ -170,13 +170,13 @@ export function usePresence(
   let nextLocalExpiration: number | null = null;
   for (const row of presenceRows) {
     if (!row.is_remote) {
-      const expiresAtUnix = new Date(row.expires_at_local).valueOf();
-      if (nextLocalExpiration === null || expiresAtUnix < nextLocalExpiration) {
-        nextLocalExpiration = expiresAtUnix;
+      if (nextLocalExpiration === null || row.expires_at_local < nextLocalExpiration) {
+        nextLocalExpiration = row.expires_at_local;
       }
     }
   }
-  useRerenderAfter(nextLocalExpiration);
+  console.log('nextLocalExpiration', nextLocalExpiration, Date.now() / 1000);
+  useRerenderAfter(nextLocalExpiration ? nextLocalExpiration * 1000 : null);
 
   return [setPresenceData, presenceStates];
 }
@@ -196,7 +196,10 @@ function useRerenderAfter(timeMs: number | null): void {
   }
   if (timeMs !== null) {
     const renderInMs = Math.max(timeMs - Date.now(), 0) + 1;
-    timeoutRef.current = setTimeout(() => setCounter(counter + 1), renderInMs);
+    timeoutRef.current = setTimeout(() => {
+      console.log('force rerender', renderInMs);
+      setCounter(counter + 1);
+    }, renderInMs);
   }
 
   // Don't let setCounter be called after we're unmounted, to prevent warnings.
