@@ -5,10 +5,10 @@ import { buildTiptapExtensions } from '@/library/tiptap/extensions';
 import { usePowerSync } from '@powersync/react';
 import { Box, Button } from '@mui/material';
 import MenuBar from './MenuBar';
-import { SharedUserData, useSharedCursors } from './shared-cursors';
+import { SharedUserData, useSharedCursors } from './useSharedCursors';
 import { randomName, randomColor } from '@/library/utils';
 import { v4 as uuidv4 } from 'uuid';
-import { usePowerSyncTextState } from './power-sync-text-state';
+import { usePowerSyncTextState } from './usePowerSyncTextState';
 import './styles.css';
 
 export interface TiptapEditorProps {

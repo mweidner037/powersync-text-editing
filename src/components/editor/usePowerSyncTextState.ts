@@ -10,7 +10,7 @@ import { Editor, EditorEvents } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
 import { useSupabase } from '../providers/SystemProvider';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
-import { useReducedTable } from '@/library/powersync/use_reduced_table';
+import { useReducedTable } from '@/library/powersync/useReducedTable';
 import { selectionToIds, selectionFromIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
 import { IdList } from 'articulated';
