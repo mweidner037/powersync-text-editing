@@ -8,16 +8,14 @@ import {
 import { usePowerSync } from '@powersync/react';
 import { Editor, EditorEvents } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
-import { useSupabase } from '../providers/SystemProvider';
 import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list-state';
 import { useReducedTable } from '@/library/powersync/useReducedTable';
 import { selectionToIds, selectionFromIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
 import { IdList } from 'articulated';
 
-export function usePowerSyncTextState(editor: Editor, docID: string) {
+export function usePowerSyncTextState(editor: Editor, docID: string, userID: string) {
   const powerSync = usePowerSync();
-  const supabase = useSupabase();
 
   // ------------
   // Our updates
@@ -26,11 +24,6 @@ export function usePowerSyncTextState(editor: Editor, docID: string) {
   const pendingUpdateCounterRef = useRef(0);
 
   const doUpdate = async (update: CollabTiptapStep[]) => {
-    const userID = supabase?.currentSession?.user.id;
-    if (!userID) {
-      throw new Error(`Could not get user ID.`);
-    }
-
     pendingUpdateCounterRef.current++;
     try {
       await powerSync.execute(

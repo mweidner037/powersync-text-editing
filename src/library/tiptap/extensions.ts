@@ -3,7 +3,7 @@ import { TextStyleKit } from '@tiptap/extension-text-style';
 import { IdListStateExtension } from './plugins/id-list-state';
 import { SharedCursorsExtension } from './plugins/shared-cursors';
 
-export function buildTiptapExtensions(clientId: string) {
+export function buildTiptapExtensions() {
   return [
     TextStyleKit,
     StarterKit.configure({
@@ -12,6 +12,6 @@ export function buildTiptapExtensions(clientId: string) {
       trailingNode: false
     }),
     IdListStateExtension,
-    SharedCursorsExtension.configure({ clientId })
+    SharedCursorsExtension
   ];
 }

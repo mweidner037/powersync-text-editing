@@ -31,6 +31,11 @@ interface PluginStateType {
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     setSharedCursors: {
+      /**
+       * Sets the current shared cursors to display.
+       *
+       * You are responsible for filtering out the local client's cursor.
+       */
       setSharedCursors: (cursors: SharedCursor[]) => ReturnType;
     };
   }
@@ -44,9 +49,6 @@ declare module '@tiptap/core' {
  * This extension requires the IdListState extension.
  */
 export interface SharedCursorOptions {
-  /** The current client's ID, used to avoid rendering our own shared cursor.  */
-  clientId: string;
-
   /**
    * A function that returns a DOM element for the cursor.
    * @param user The user details object
@@ -102,7 +104,6 @@ export const SharedCursorsExtension = Extension.create<SharedCursorOptions>({
 
   addOptions() {
     return {
-      clientId: '',
       render: (user) => {
         const cursor = document.createElement('span');
 
@@ -187,7 +188,6 @@ function createDecorations(
   const decorations: Decoration[] = [];
 
   for (const cursor of cursors) {
-    if (cursor.clientId === options.clientId) continue;
     if (!cursor.selection) continue;
 
     try {

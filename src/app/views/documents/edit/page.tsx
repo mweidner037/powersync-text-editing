@@ -34,6 +34,8 @@ export default function DocumentEditPage() {
 }
 
 const DocumentEditSection = ({ docID }: { docID: string }) => {
+  const supabase = useSupabase();
+
   const {
     data: [documentRecord]
   } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID]);
@@ -46,9 +48,14 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
     );
   }
 
+  const userID = supabase?.currentSession?.user.id;
+  if (!userID) {
+    throw new Error(`Could not get user ID.`);
+  }
+
   return (
     <NavigationPage title={`Document: ${documentRecord.name}`}>
-      <TiptapEditor docID={docID} />
+      <TiptapEditor docID={docID} userID={userID} />
     </NavigationPage>
   );
 };
