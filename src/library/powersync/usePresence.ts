@@ -1,5 +1,5 @@
 import { usePowerSync, useQuery } from '@powersync/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { column } from '@powersync/web';
 
@@ -136,7 +136,7 @@ export function usePresence(
     expires_at_local: number;
   }>(
     `
-    SELECT client_id, user_id, data, is_remote, expires_at_local
+    SELECT client_id, user_id, data, is_remote, expires_at_local, version
     FROM ${tableName} t1
     WHERE room_id = ? AND client_id != ?
       AND (
@@ -163,51 +163,12 @@ export function usePresence(
     [presenceRows]
   );
 
-  // Watched queries don't account for the change in datetime('now').
-  // We need to explicitly rerender after the next expires_at_local.
+  // Note: Technically, we should rerun the above query when any local rows expire.
+  // It seems to re-render periodically as-is, perhaps due to our heartbeat retriggering the query.
   // TODO: Can we instead get this information (local client disconnection) from the PowerSync service worker?
   // Then we would not need expires_at_local at all.
-  let nextLocalExpiration: number | null = null;
-  for (const row of presenceRows) {
-    if (!row.is_remote) {
-      if (nextLocalExpiration === null || row.expires_at_local < nextLocalExpiration) {
-        nextLocalExpiration = row.expires_at_local;
-      }
-    }
-  }
-  console.log('nextLocalExpiration', nextLocalExpiration, Date.now() / 1000);
-  useRerenderAfter(nextLocalExpiration ? nextLocalExpiration * 1000 : null);
+
+  // TODO: Hide all remote presence rows when offline - we won't get the server's deletes.
 
   return [setPresenceData, presenceStates];
-}
-
-/**
- * Force a rerender just after the given Unix time.
- *
- * Each call (render) overrides the previous call, including canceling the rerender
- * if later called with null.
- */
-function useRerenderAfter(timeMs: number | null): void {
-  const [counter, setCounter] = useState(0);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  if (timeoutRef.current !== null) {
-    clearTimeout(timeoutRef.current);
-  }
-  if (timeMs !== null) {
-    const renderInMs = Math.max(timeMs - Date.now(), 0) + 1;
-    timeoutRef.current = setTimeout(() => {
-      console.log('force rerender', renderInMs);
-      setCounter(counter + 1);
-    }, renderInMs);
-  }
-
-  // Don't let setCounter be called after we're unmounted, to prevent warnings.
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current !== null) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
 }

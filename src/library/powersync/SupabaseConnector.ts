@@ -131,13 +131,11 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
       for (const op of transaction.crud) {
         lastOp = op;
         const table = this.client.from(op.table);
-        console.log(op);
         let result: any;
         switch (op.op) {
           case UpdateType.PUT:
             // Skip old presence rows as described in the usePresence docs.
             if (op.table === PRESENCE_TABLE && Date.now() >= op.opData!.expires_at_local * 1000) {
-              console.log('Skipping old presence row');
               continue;
             }
             const record = { ...op.opData, id: op.id };
