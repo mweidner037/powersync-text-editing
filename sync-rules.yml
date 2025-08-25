@@ -2,16 +2,18 @@ bucket_definitions:
   user_documents:
     # Separate bucket per document
     parameters: select id as doc_id from documents where owner_id = request.user_id()
+    priority: 0
     data:
       - select * from documents where id = bucket.doc_id
       - select * from text_updates where doc_id = bucket.doc_id
-      - select * from shared_cursors where doc_id = bucket.doc_id
+      - select * from presence where room_id = bucket.doc_id
 
   current_document:
     accept_potentially_dangerous_queries: true
     # Separate bucket per document
     parameters: select id as doc_id from documents where id = (request.parameters() ->> 'current_doc_id')
+    priority: 0
     data:
       - select * from documents where id = bucket.doc_id
       - select * from text_updates where doc_id = bucket.doc_id
-      - select * from shared_cursors where doc_id = bucket.doc_id
+      - select * from presence where room_id = bucket.doc_id
