@@ -102,7 +102,15 @@ export function usePresence(
       await setOnce(data);
     };
 
-    return setWithHeartbeat;
+    let lastData = initialData;
+    const setIfChanged = async (data: string) => {
+      // Avoid redundant sets (except for heartbeats).
+      if (data === lastData) return;
+      lastData = data;
+      await setWithHeartbeat(data);
+    };
+
+    return setIfChanged;
   }, [clientID]);
 
   useEffect(
@@ -166,7 +174,8 @@ export function usePresence(
   // Note: Technically, we should rerun the above query when any local rows expire.
   // It seems to re-render periodically as-is, perhaps due to our heartbeat retriggering the query.
   // TODO: Can we instead get this information (local client disconnection) from the PowerSync service worker?
-  // Then we would not need expires_at_local at all.
+  // Then we would not need expires_at_local at all, and it would prevent you
+  // from seeing old copies of yourself for 30 seconds after refreshing.
 
   // TODO: Hide all remote presence rows when offline - we won't get the server's deletes.
 

@@ -5,7 +5,7 @@ import { SharedCursor } from '@/library/tiptap/plugins/shared-cursors';
 import { IdSelection, selectionToIds } from '@/library/tiptap/selection';
 import { Editor, EditorEvents } from '@tiptap/react';
 import _ from 'lodash';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 export interface SharedCursorUserInfo {
   name: string;
@@ -46,22 +46,33 @@ export function useSharedCursors(editor: Editor, docID: string, userID: string, 
     [setPresenceData, userInfo]
   );
 
+  const pendingFlushRef = useRef(false);
   useEffect(() => {
-    function onSelectionUpdate({ transaction, editor }: EditorEvents['selectionUpdate']) {
+    function onTransaction({ transaction, editor }: EditorEvents['transaction']) {
       if (transaction.getMeta('ourRemoteUpdate')) return;
 
       const { isValid, idList } = getIdListState(editor.state);
-      if (!isValid) return;
+      if (!isValid) {
+        pendingFlushRef.current = pendingFlushRef.current || transaction.docChanged;
+        return;
+      }
+
       const idSelection = selectionToIds(editor.state.selection, idList);
+      updatedSharedCursor(idSelection);
 
-      void updatedSharedCursor(idSelection);
-
-      // TODO: also null/set on focus in/out, like y-cursor.
+      if (pendingFlushRef.current) {
+        pendingFlushRef.current = false;
+        // Flush after a docChanged transaction (possibly delayed until after the
+        // setIdListState command) so that our cursor moves together with our edits.
+        updatedSharedCursor.flush();
+      }
     }
 
-    editor.on('selectionUpdate', onSelectionUpdate);
+    // TODO: also null/set on focus in/out, like y-cursor.
+
+    editor.on('transaction', onTransaction);
     return () => {
-      editor.off('selectionUpdate', onSelectionUpdate);
+      editor.off('transaction', onTransaction);
     };
   }, [editor]);
 

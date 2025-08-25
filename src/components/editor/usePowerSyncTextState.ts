@@ -44,14 +44,13 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   useEffect(() => {
     function onUpdate({ transaction, editor }: EditorEvents['update']) {
       const [steps, newIdList] = updateToSteps(transaction, getIdListState(editor.state).idList, idGenRef.current);
+      if (steps.length > 0) void doUpdate(steps);
+
       // It would be cleaner to add the new IdList to transaction and then dispatch it,
       // like when using ProseMirror's dispatchTransaction prop.
       // That way the state is updated before any local plugins see this transaction.
-      // With Tiptap, we instead need to update it afterwards and trust plugins to not
-      // read the state on local updates.
+      // With Tiptap, we instead need to update it afterwards and trust plugins to respect isValid.
       editor.commands.setIdListState(newIdList);
-
-      if (steps.length > 0) void doUpdate(steps);
     }
 
     editor.on('update', onUpdate);
