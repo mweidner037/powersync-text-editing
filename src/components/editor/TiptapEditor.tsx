@@ -23,7 +23,6 @@ export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
   const userDataRef = useRef<SharedCursorUserInfo | null>(null);
   if (!userDataRef.current) {
     userDataRef.current = {
-      // TODO: Get name from account?
       name: randomName(),
       color: randomColor()
     };

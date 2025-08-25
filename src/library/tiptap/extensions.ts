@@ -7,7 +7,6 @@ export function buildTiptapExtensions() {
   return [
     TextStyleKit,
     StarterKit.configure({
-      // TODO: Need a collaborative version of this.
       undoRedo: false,
       trailingNode: false
     }),
