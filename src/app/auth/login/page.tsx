@@ -1,4 +1,3 @@
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoginDetailsWidget } from '@/components/widgets/LoginDetailsWidget';
 import { useSupabase } from '@/components/providers/SystemProvider';
@@ -24,6 +23,16 @@ export default function LoginPage() {
           title: 'Register',
           onClick: () => {
             navigate('/auth/register');
+          }
+        },
+        {
+          title: 'Enter Anonymously',
+          onClick: async () => {
+            if (!supabase) {
+              throw new Error('Supabase has not been initialized yet');
+            }
+            await supabase.anonLogin();
+            navigate(DEFAULT_ENTRY_ROUTE);
           }
         }
       ]}

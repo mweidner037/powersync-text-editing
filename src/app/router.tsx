@@ -16,11 +16,11 @@ export const REGISTER_ROUTE = '/auth/register';
 export const SQL_CONSOLE_ROUTE = '/sql-console';
 
 interface AuthGuardProps {
-  allowAnon?: boolean;
+  allowUserless?: boolean;
   children: JSX.Element;
 }
 
-const AuthGuard = ({ children, allowAnon }: AuthGuardProps) => {
+const AuthGuard = ({ children, allowUserless }: AuthGuardProps) => {
   const connector = useSupabase();
 
   const navigate = useNavigate();
@@ -37,12 +37,12 @@ const AuthGuard = ({ children, allowAnon }: AuthGuardProps) => {
     });
 
     const loginGuard = () => {
-      if (allowAnon) {
+      if (allowUserless) {
         if (!connector.currentSession) {
-          void connector.anonLogin();
+          void connector.userlessLogin();
         }
       } else {
-        if (!connector.isLoggedInAsUser()) {
+        if (!(connector.currentSession && !connector.isUserless)) {
           navigate(LOGIN_ROUTE);
         }
       }
@@ -57,7 +57,7 @@ const AuthGuard = ({ children, allowAnon }: AuthGuardProps) => {
       });
       return () => l?.();
     }
-  }, [allowAnon]);
+  }, [allowUserless]);
   return children;
 };
 
@@ -97,7 +97,7 @@ export const router = createBrowserRouter([
       {
         path: DOCUMENT_EDIT_ROUTE,
         element: (
-          <AuthGuard allowAnon>
+          <AuthGuard allowUserless>
             <DocumentEditPage />
           </AuthGuard>
         )

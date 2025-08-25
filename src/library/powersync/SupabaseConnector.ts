@@ -40,6 +40,7 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
   ready: boolean;
 
   currentSession: Session | null;
+  isUserless = false;
 
   constructor() {
     super();
@@ -86,6 +87,9 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
     this.updateSession(session);
   }
 
+  /**
+   * Login as a new anonymous user.
+   */
   async anonLogin() {
     const {
       data: { session },
@@ -97,6 +101,23 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
     }
 
     this.updateSession(session);
+  }
+
+  /**
+   * "Login" just enough to connect to Supabase, but set userless to true,
+   * blocking access to the homepage.
+   */
+  async userlessLogin() {
+    const {
+      data: { session },
+      error
+    } = await this.client.auth.signInAnonymously();
+
+    if (error) {
+      throw error;
+    }
+
+    this.updateSession(session, true);
   }
 
   async fetchCredentials() {
@@ -178,15 +199,12 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
     }
   }
 
-  updateSession(session: Session | null) {
+  updateSession(session: Session | null, isUserless = false) {
     this.currentSession = session;
+    this.isUserless = isUserless;
     if (!session) {
       return;
     }
     this.iterateListeners((cb) => cb.sessionStarted?.(session));
-  }
-
-  isLoggedInAsUser() {
-    return !!this.currentSession && !this.currentSession.user.is_anonymous;
   }
 }
