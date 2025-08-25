@@ -37,8 +37,13 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
   const supabase = useSupabase();
 
   const {
-    data: [documentRecord]
+    data: [documentRecord],
+    isLoading
   } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID]);
+
+  if (isLoading) {
+    return <CircularProgress />;
+  }
 
   if (!documentRecord) {
     return (
