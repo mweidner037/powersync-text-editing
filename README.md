@@ -2,13 +2,39 @@
 
 ## Overview
 
-Demo app demonstrating use of the [PowerSync SDK for Web](https://www.npmjs.com/package/@powersync/web) together with Supabase for collaborative text-editing.
+Demo app using the [PowerSync SDK for Web](https://www.npmjs.com/package/@powersync/web) for **collaborative text-editing**. Built with [Tiptap](https://tiptap.dev/) and [Supabase](https://supabase.com/).
 
-A step-by-step guide on Supabase<>PowerSync integration is available [here](https://docs.powersync.com/integration-guides/supabase-+-powersync). Read about the text-editing strategy [here](https://mattweidner.com/2025/05/21/text-without-crdts.html).
+The demo stores each update to the text document as a row in a PowerSync table. Instead of using Yjs or a similar collaboration library, the updates are stored as "steps" describing what the user originally did - specifically, [ProseMirror steps](https://prosemirror.net/docs/guide/#transform.steps) but with their positions replaced by immutable character IDs. The app computes the current text state by replaying the steps in (the server's) order. Thanks to the character IDs, that gives a reasonable result even if users edit the text concurrently.
+
+You can learn more about this text-editing strategy in the blog post [Collaborative Text Editing without CRDTs or OT](https://mattweidner.com/2025/05/21/text-without-crdts.html). This demo stores character IDs using the [Articulated](https://github.com/mweidner037/articulated) library described there.
+
+### Why?
+
+Why implement the demo using ProseMirror steps + character IDs instead of a more traditional CRDT library?
+
+- Transparency: You can "see" what the updates are doing, at least if you have a good understanding of [ProseMirror's step types](https://prosemirror.net/docs/ref/#transform.Steps).
+- Flexibility: You control how updates are generated and applied, so you can tweak how they interact with conflicting updates, or generalize them to more complex data structures.
+- Guaranteed Convergence: All users eventually see the same updates applied in the same order, so they're guaranteed to see the same result even if you mess up your update-processing function - you don't need to satisfy algebraic rules like with CRDTs or Operational Transformation. (Though bad update processing might leave users in a consistently-corrupted state...)
+
+Why PowerSync?
+
+- The PowerSync client manages reconnections to the backend for you, gracefully handling duplicate data transfers. (Try doing this with plain WebSockets...)
+- Built-in cross-tab collaboration.
+- Local persistent storage, including offline mode.
+
+> In our experience, the above features are **harder** than collaborative text editing, in spite of all the ink spilled about CRDTs and Operational Transformation.
+
+Why else did we make this demo?
+
+- Stress-test PowerSync with high-volume, low latency updates (a new row per keypress).
+- Explore PowerSync's support for common collaborative document features, such as shared presence and public share links.
+- Make the above [blog post](https://mattweidner.com/2025/05/21/text-without-crdts.html) real!
 
 ## Getting Started
 
-Use [pnpm](https://pnpm.io/installation) to install dependencies:
+First, setup PowerSync and Supabase following the guide [here](https://docs.powersync.com/integration-guides/supabase-+-powersync).
+
+Next, use [pnpm](https://pnpm.io/installation) to install dependencies:
 
 ```bash
 pnpm install
