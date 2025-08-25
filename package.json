@@ -20,6 +20,7 @@
     "@powersync/react": "^1.7.0",
     "@powersync/web": "^1.25.1",
     "@supabase/supabase-js": "^2.39.7",
+    "@tiptap/core": "^3.0.7",
     "@tiptap/extension-text-style": "^3.0.7",
     "@tiptap/pm": "^3.0.7",
     "@tiptap/react": "^3.0.7",
