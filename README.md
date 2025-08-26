@@ -22,8 +22,6 @@ Why PowerSync?
 - Built-in cross-tab collaboration.
 - Local persistent storage, including offline mode.
 
-> In our experience, the above features are **harder** than collaborative text editing, in spite of all the ink spilled about CRDTs and Operational Transformation.
-
 Why else did we make this demo?
 
 - Stress-test PowerSync with high-volume, low latency updates (a new row per keypress).
