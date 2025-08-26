@@ -1,10 +1,5 @@
 import { TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
-import {
-  CollabTiptapStep,
-  collabTiptapStepReducer,
-  ElementIdGenerator,
-  updateToSteps
-} from '@/library/tiptap/step_converter';
+import { CollabTiptapStep, collabTiptapStepReducer, updateToSteps } from '@/library/tiptap/step_converter';
 import { usePowerSync } from '@powersync/react';
 import { Editor, EditorEvents } from '@tiptap/react';
 import { useEffect, useRef } from 'react';
@@ -12,7 +7,7 @@ import { getIdListState, setIdListState } from '@/library/tiptap/plugins/id-list
 import { useReducedTable } from '@/library/powersync/useReducedTable';
 import { selectionToIds, selectionFromIds } from '@/library/tiptap/selection';
 import { TextSelection } from '@tiptap/pm/state';
-import { IdList } from 'articulated';
+import { ElementIdGenerator, IdList } from 'articulated';
 
 export function usePowerSyncTextState(editor: Editor, docID: string, userID: string) {
   const powerSync = usePowerSync();
@@ -39,7 +34,7 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     }
   };
 
-  const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator());
+  const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator(() => crypto.randomUUID()));
 
   useEffect(() => {
     function onUpdate({ transaction, editor }: EditorEvents['update']) {

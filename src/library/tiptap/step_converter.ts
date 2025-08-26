@@ -11,7 +11,7 @@ import {
   ReplaceStep,
   Step
 } from '@tiptap/pm/transform';
-import { ElementId, expandIds, IdList } from 'articulated';
+import { ElementId, ElementIdGenerator, IdList } from 'articulated';
 
 // TODO: For ReplaceStep, prioritize the current format unless explicitly overridden,
 // so that text concurrent to insertion does the expected thing in either insertion order.
@@ -161,7 +161,7 @@ export function collabTiptapStepReducer(
           console.log('Rebased insert failed, skipping', step, pmStep);
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
-          idList = deleteBulk(idList, step.newId, slice.size);
+          idList = idList.delete(step.newId, slice.size);
         }
         break;
       }
@@ -172,7 +172,7 @@ export function collabTiptapStepReducer(
 
         const pmStep = new ReplaceStep(from, toIncl + 1, slice || Slice.empty);
         if (tr.maybeStep(pmStep)) {
-          idList = deleteRange(idList, pmStep.from, pmStep.to);
+          idList = idList.deleteRange(pmStep.from, pmStep.to);
           if (step.insert) {
             idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
           }
@@ -181,8 +181,9 @@ export function collabTiptapStepReducer(
           if (step.insert) {
             // Still insert the new ElementIds but mark them as deleted, in case they are
             // referenced in future operations.
-            idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
-            idList = deleteBulk(idList, step.insert.newId, slice!.size);
+            idList = idList
+              .insertBefore(step.fromId, step.insert.newId, slice!.size)
+              .delete(step.insert.newId, slice!.size);
           }
         }
         break;
@@ -204,9 +205,8 @@ export function collabTiptapStepReducer(
           console.log('Rebased insertAround failed, skipping', step, pmStep);
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
-          idList = deleteBulk(idList, step.newId, step.insert);
-          idList = deleteBulk(
-            idList,
+          idList = idList.delete(step.newId, step.insert);
+          idList = idList.delete(
             { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
             slice.size - step.insert
           );
@@ -227,8 +227,8 @@ export function collabTiptapStepReducer(
           // Delete the parts around each gap, then insert the slice's new ElementIds,
           // leaving the gap's ElementIds alone.
           // Do the second part first so we don't need to rebase indices.
-          idList = deleteRange(idList, pmStep.gapTo, pmStep.to);
-          idList = deleteRange(idList, pmStep.from, pmStep.gapFrom);
+          idList = idList.deleteRange(pmStep.gapTo, pmStep.to);
+          idList = idList.deleteRange(pmStep.from, pmStep.gapFrom);
           idList = idList.insertBefore(step.fromId, step.newId, step.insert);
           idList = idList.insertAfter(
             step.toInclId,
@@ -239,18 +239,17 @@ export function collabTiptapStepReducer(
           console.log('Rebased replaceAround failed, skipping', step, pmStep);
           // Still insert the new ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
-          idList = idList.insertBefore(step.fromId, step.newId, step.insert);
-          idList = deleteBulk(idList, step.newId, step.insert);
-          idList = idList.insertAfter(
-            step.toInclId,
-            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
-            slice.size - step.insert
-          );
-          idList = deleteBulk(
-            idList,
-            { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
-            slice.size - step.insert
-          );
+          idList = idList.insertBefore(step.fromId, step.newId, step.insert).delete(step.newId, step.insert);
+          idList = idList
+            .insertAfter(
+              step.toInclId,
+              { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+              slice.size - step.insert
+            )
+            .delete(
+              { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
+              slice.size - step.insert
+            );
         }
 
         break;
@@ -328,7 +327,7 @@ export function updateToSteps(
         // Delete or delete-and-insert.
         const fromId = idList.at(step.from);
         const toInclId = step.to === step.from + 1 ? undefined : idList.at(step.to - 1);
-        idList = deleteRange(idList, step.from, step.to);
+        idList = idList.deleteRange(step.from, step.to);
         if (step.slice.size === 0) {
           collabSteps.push({
             type: 'replace',
@@ -336,7 +335,7 @@ export function updateToSteps(
             toInclId
           });
         } else {
-          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
+          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
           idList = idList.insertBefore(fromId, newId, step.slice.size);
           collabSteps.push({
             type: 'replace',
@@ -351,7 +350,7 @@ export function updateToSteps(
       } else {
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
-        const newId = idGen.generateAfter(beforeId, idList);
+        const newId = idGen.generateAfter(beforeId);
         collabSteps.push({
           type: 'insert',
           beforeId,
@@ -364,7 +363,7 @@ export function updateToSteps(
       if (step.from < step.gapFrom || step.gapTo < step.to) {
         const fromId = idList.at(step.from);
         const toInclId = idList.at(step.to - 1);
-        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), idList);
+        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
         const gapFromIdExcl = idList.at(step.gapFrom - 1);
         const gapToId = idList.at(step.gapTo);
         collabSteps.push({
@@ -380,8 +379,8 @@ export function updateToSteps(
         // Delete the parts around each gap, then insert the slice's new ElementIds,
         // leaving the gap's ElementIds alone.
         // Do the second part first so we don't need to rebase indices.
-        idList = deleteRange(idList, step.gapTo, step.to);
-        idList = deleteRange(idList, step.from, step.gapFrom);
+        idList = idList.deleteRange(step.gapTo, step.to);
+        idList = idList.deleteRange(step.from, step.gapFrom);
         idList = idList.insertBefore(fromId, newId, step.insert);
         idList = idList.insertAfter(
           toInclId,
@@ -392,7 +391,7 @@ export function updateToSteps(
         // Insert only.
         const part1BeforeId = step.from === 0 ? null : idList.at(step.from - 1);
         const part2AfterId = step.to === idList.length ? null : idList.at(step.to);
-        const newId = idGen.generateAfter(part1BeforeId, idList);
+        const newId = idGen.generateAfter(part1BeforeId);
         collabSteps.push({
           type: 'insertAround',
           part1BeforeId,
@@ -464,44 +463,4 @@ export function updateToSteps(
   }
 
   return [collabSteps, idList];
-}
-
-// TODO: Move to articulated?
-export class ElementIdGenerator {
-  readonly instanceId: string;
-  private nextCounter = 0;
-
-  constructor() {
-    this.instanceId = crypto.randomUUID();
-  }
-
-  generateAfter(beforeId: ElementId | null, idList: IdList) {
-    if (beforeId !== null && beforeId.bunchId.startsWith(this.instanceId)) {
-      if (idList.maxCounter(beforeId.bunchId) === beforeId.counter) {
-        return { bunchId: beforeId.bunchId, counter: beforeId.counter + 1 };
-      }
-    }
-
-    const bunchId = `${this.instanceId}_${this.nextCounter++}`;
-    return { bunchId, counter: 0 };
-  }
-}
-
-// TODO: Add as a method on IdList?
-function deleteRange(idList: IdList, from: number, to: number) {
-  const allIds: ElementId[] = [];
-  for (let i = from; i < to; i++) {
-    allIds.push(idList.at(i));
-  }
-  for (const id of allIds) idList = idList.delete(id);
-
-  return idList;
-}
-
-// TODO: Add similar method to IdList? Perhaps as insert-already-deleted.
-function deleteBulk(idList: IdList, startId: ElementId, count: number) {
-  for (const id of expandIds(startId, count)) {
-    idList = idList.delete(id);
-  }
-  return idList;
 }
