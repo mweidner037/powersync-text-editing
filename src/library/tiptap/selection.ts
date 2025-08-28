@@ -8,15 +8,15 @@ export type IdSelection =
     }
   | {
       type: 'cursor';
-      /** The character to the left of the cursor, or null if at the beginning. */
-      id: ElementId | null;
+      /** Left-binding cursor. */
+      cursor: ElementId | null;
     }
   | {
       type: 'textRange';
-      /** The character to the right of the selection start. */
-      start: ElementId;
-      /** The character to the left of the selection end. */
-      end: ElementId;
+      /** Left-binding cursor. */
+      fromCursor: ElementId | null;
+      /** Left-binding cursor. */
+      toCursor: ElementId | null;
       forwards: boolean;
     }
   | { type: 'unsupported' };
@@ -25,13 +25,13 @@ export function selectionToIds(selection: Selection, idList: IdList): IdSelectio
   if (selection instanceof AllSelection) {
     return { type: 'all' };
   } else if (selection.to === selection.from) {
-    return { type: 'cursor', id: selection.from === 0 ? null : idList.at(selection.from - 1) };
+    return { type: 'cursor', cursor: idList.cursorAt(selection.from) };
   } else if (selection instanceof TextSelection) {
     const { from, to, anchor, head } = selection;
     return {
       type: 'textRange',
-      start: idList.at(from),
-      end: idList.at(to - 1),
+      fromCursor: idList.cursorAt(from),
+      toCursor: idList.cursorAt(to),
       forwards: head > anchor
     };
   } else {
@@ -45,16 +45,16 @@ export function selectionFromIds(idSel: IdSelection, doc: Node, idList: IdList):
     case 'all':
       return new AllSelection(doc);
     case 'cursor':
-      const pos = idSel.id === null ? 0 : idList.indexOf(idSel.id, 'left') + 1;
+      const pos = idList.cursorIndex(idSel.cursor);
       return Selection.near(doc.resolve(pos));
     case 'textRange':
-      const from = idList.indexOf(idSel.start, 'right');
-      const to = idList.indexOf(idSel.end, 'left') + 1;
+      const from = idList.cursorIndex(idSel.fromCursor);
+      const to = idList.cursorIndex(idSel.toCursor);
       if (to <= from) return Selection.near(doc.resolve(from));
       const [anchor, head] = idSel.forwards ? [from, to] : [to, from];
       return TextSelection.between(doc.resolve(anchor), doc.resolve(head));
     case 'unsupported':
-      // Set cursor to the first char.
-      return Selection.atStart(doc);
+      // Set cursor to the end.
+      return Selection.atEnd(doc);
   }
 }

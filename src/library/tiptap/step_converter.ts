@@ -21,7 +21,6 @@ import { ElementId, ElementIdGenerator, IdList } from 'articulated';
 // TODO: Alternative to ReplaceAroundStep when you are just changing a block node type
 // (e.g. paragraph -> heading), which just does LWW on the block type without creating any
 // new ElementIds.
-// TODO: Cursor/span helpers from list-formatting? Would make the steps simpler.
 
 export type CollabTiptapStep =
   | {
@@ -62,7 +61,8 @@ export type CollabTiptapStep =
       // TODO: step.structure?
     }
   | {
-      /** ReplaceAroundStep, insertion-only case.
+      /**
+       * ReplaceAroundStep, insertion-only case.
        * E.g. wrapping a block in a bullet list item.
        *
        * Although this derives from the same step (ReplaceAroundStep) as type "replaceAround",
