@@ -1,9 +1,7 @@
 import { useRef } from 'react';
-import { PRESENCE_TABLE, TEXT_UPDATES_TABLE } from '@/library/powersync/AppSchema';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { buildTiptapExtensions } from '@/library/tiptap/extensions';
-import { usePowerSync } from '@powersync/react';
-import { Box, Button } from '@mui/material';
+import { Box } from '@mui/material';
 import MenuBar from './MenuBar';
 import { SharedCursorUserInfo, useSharedCursors } from './useSharedCursors';
 import { randomName, randomColor } from '@/library/utils';
@@ -16,8 +14,6 @@ export interface TiptapEditorProps {
 }
 
 export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
-  const powerSync = usePowerSync();
-
   // Local client info for shared cursors
 
   const userDataRef = useRef<SharedCursorUserInfo | null>(null);
@@ -27,13 +23,6 @@ export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
       color: randomColor()
     };
   }
-
-  // PowerSync mutations
-
-  const clear = async () => {
-    await powerSync.execute(`DELETE FROM ${TEXT_UPDATES_TABLE} WHERE doc_id = ?`, [docID!]);
-    await powerSync.execute(`DELETE FROM ${PRESENCE_TABLE} WHERE doc_id = ?`, [docID!]);
-  };
 
   // Tiptap setup
 
@@ -53,7 +42,6 @@ export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
     <Box>
       <MenuBar editor={editor} />
       <EditorContent editor={editor} />
-      <Button onClick={clear}>Clear</Button>
     </Box>
   );
 };
