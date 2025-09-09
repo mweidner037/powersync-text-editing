@@ -22,6 +22,8 @@ export class ServerReconciler<S, U> {
   }
 
   applyLocalUpdates(updates: { id: string; update: U }[]): void {
+    if (updates.length === 0) return;
+
     if (this.pendingLocalUpdates.size === 0) {
       this.localState = this.clone(this.serverState);
     }
@@ -32,9 +34,28 @@ export class ServerReconciler<S, U> {
   }
 
   applyServerUpdates(updates: { id: string; update: U }[]): void {
+    if (updates.length === 0) return;
+
     for (const update of updates) {
       this.serverState = this.reducer(this.serverState, update.update);
       this.pendingLocalUpdates.delete(update.id);
+    }
+    this.rerunPending();
+  }
+
+  applyUpdates(server: { id: string; update: U }[], local: { id: string; update: U }[]): void {
+    if (server.length === 0) {
+      // Opt: Skip rerunPending in this case.
+      this.applyLocalUpdates(local);
+      return;
+    }
+
+    for (const update of server) {
+      this.serverState = this.reducer(this.serverState, update.update);
+      this.pendingLocalUpdates.delete(update.id);
+    }
+    for (const update of local) {
+      this.pendingLocalUpdates.set(update.id, update.update);
     }
     this.rerunPending();
   }
@@ -46,8 +67,12 @@ export class ServerReconciler<S, U> {
    * applyServerUpdates will delete those automatically. Instead, use this
    * to delete local updates that the server rejected or changed ids.
    */
-  deletePending(id: string): void {
-    if (this.pendingLocalUpdates.delete(id)) this.rerunPending();
+  deletePending(ids: string[]): void {
+    let changed = false;
+    for (const id of ids) {
+      changed ||= this.pendingLocalUpdates.delete(id);
+    }
+    if (changed) this.rerunPending();
   }
 
   private rerunPending(): void {
@@ -55,6 +80,7 @@ export class ServerReconciler<S, U> {
       this.localState = this.serverState;
     } else {
       this.localState = this.clone(this.serverState);
+      // We rely on Map's iteration in order added.
       for (const update of this.pendingLocalUpdates.values()) {
         this.localState = this.reducer(this.localState, update);
       }
@@ -91,17 +117,30 @@ export class PowerSyncServerReconciler<S, U> {
     const docQuery = sanitizeSQL`json_extract(NEW.data, '$.doc_id') = ${docId}`;
     this.stopPromise = powerSync.triggers.trackTableDiff({
       source: psTableName,
-      // Required WHEN clause per operation to filter inside the trigger. Use 'TRUE' to track all.
+      columns: ['data'],
       when: { INSERT: docQuery, UPDATE: docQuery },
       onChange: async (context) => {
-        const newUpdates = await context.getAll(`
-          SELECT updates.*
-          FROM DIFF
-          JOIN ${psTableName} updates ON DIFF.id = updates.id
-        `);
+        const server: { id: string; update: U }[] = [];
+        const local: { id: string; update: U }[] = [];
 
-        // TODO: Handle new updates
-        // TODO: Handle updated updates (committed)
+        const changedRows = await context.getAll<{ id: string; update: string; is_committed: number }>(`
+          SELECT id, "update", (server_version IS NOT NULL) as is_committed FROM
+          (
+            SELECT
+              id,
+              CAST(json_extract(mt.data, '$.update') as TEXT) AS "update", 
+              CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version, 
+              mt.rowid 
+            FROM "ps_data__${tableName}" mt
+            INNER JOIN DIFF d ON mt.id = d.id
+          )
+          ORDER BY server_version NULLS LAST, rowid
+        `);
+        for (const changedRow of changedRows) {
+          const update = JSON.parse(changedRow.update) as U;
+          (changedRow.is_committed ? server : local).push({ id: changedRow.id, update });
+        }
+
         // TODO: Handle deletes (time travel)?
 
         this.onLoaded?.();
