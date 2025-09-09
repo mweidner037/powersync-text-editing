@@ -113,7 +113,7 @@ export class PowerSyncServerReconciler<S, U> {
   ) {
     this.reconciler = new ServerReconciler(initialState, reducer, clone);
 
-    const psTableName = 'ps_data__${tableName}';
+    const psTableName = `ps_data__${tableName}`;
     const docQuery = sanitizeSQL`json_extract(NEW.data, '$.doc_id') = ${docId}`;
     this.stopPromise = powerSync.triggers.trackTableDiff({
       source: psTableName,
@@ -131,7 +131,7 @@ export class PowerSyncServerReconciler<S, U> {
               CAST(json_extract(mt.data, '$.update') as TEXT) AS "update", 
               CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version, 
               mt.rowid 
-            FROM "ps_data__${tableName}" mt
+            FROM "${psTableName}" mt
             INNER JOIN DIFF d ON mt.id = d.id
           )
           ORDER BY server_version NULLS LAST, rowid
@@ -143,6 +143,8 @@ export class PowerSyncServerReconciler<S, U> {
 
         // TODO: Handle deletes (time travel)?
 
+        this.reconciler.applyUpdates(server, local);
+        this.onStateChange?.(this.state);
         this.onLoaded?.();
       }
     });
