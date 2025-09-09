@@ -120,26 +120,25 @@ export class PowerSyncServerReconciler<S, U> {
   ) {
     this.reconciler = new ServerReconciler(initialState, reducer, clone);
 
-    const psTableName = `ps_data__${tableName}`;
     const docQuery = sanitizeSQL`json_extract(NEW.data, '$.doc_id') = ${docId}`;
     this.stopPromise = powerSync.triggers.trackTableDiff({
-      source: psTableName,
-      columns: ['data'],
+      source: tableName,
+      columns: ['update', 'server_version'],
       when: { INSERT: docQuery, UPDATE: docQuery },
       onChange: async (context) => {
         const server: { id: string; update: U }[] = [];
         const local: { id: string; update: U }[] = [];
 
-        const changedRows = await context.getAll<{ id: string; update: string; is_committed: number }>(`
+        const changedRows = await context.withDiff<{ id: string; update: string; is_committed: number }>(`
           SELECT id, "update", (server_version IS NOT NULL) as is_committed FROM
           (
             SELECT
-              id,
-              CAST(json_extract(mt.data, '$.update') as TEXT) AS "update", 
-              CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version, 
-              mt.rowid 
-            FROM "${psTableName}" mt
-            INNER JOIN DIFF d ON mt.id = d.id
+              mt.id,
+              CAST(json_extract(mt.data, '$.update') as TEXT) AS "update",
+              CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version,
+              mt.rowid
+            FROM "ps_data__${tableName}" mt
+            JOIN DIFF ON DIFF.id = mt.id
           )
           ORDER BY server_version NULLS LAST, rowid
         `);
