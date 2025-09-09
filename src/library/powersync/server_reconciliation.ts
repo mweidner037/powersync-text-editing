@@ -10,7 +10,7 @@ export class ServerReconciler<S, U> {
 
   constructor(
     private readonly initialState: S,
-    private readonly reducer: (state: S, update: U) => S,
+    private readonly reducer: (state: S, updates: U[]) => S,
     private readonly clone: (state: S) => S
   ) {
     this.serverState = clone(initialState);
@@ -27,8 +27,11 @@ export class ServerReconciler<S, U> {
     if (this.pendingLocalUpdates.size === 0) {
       this.localState = this.clone(this.serverState);
     }
+    this.localState = this.reducer(
+      this.localState,
+      updates.map(({ update }) => update)
+    );
     for (const update of updates) {
-      this.localState = this.reducer(this.localState, update.update);
       this.pendingLocalUpdates.set(update.id, update.update);
     }
   }
@@ -36,8 +39,11 @@ export class ServerReconciler<S, U> {
   applyServerUpdates(updates: { id: string; update: U }[]): void {
     if (updates.length === 0) return;
 
+    this.serverState = this.reducer(
+      this.serverState,
+      updates.map(({ update }) => update)
+    );
     for (const update of updates) {
-      this.serverState = this.reducer(this.serverState, update.update);
       this.pendingLocalUpdates.delete(update.id);
     }
     this.rerunPending();
@@ -50,8 +56,11 @@ export class ServerReconciler<S, U> {
       return;
     }
 
+    this.serverState = this.reducer(
+      this.serverState,
+      server.map(({ update }) => update)
+    );
     for (const update of server) {
-      this.serverState = this.reducer(this.serverState, update.update);
       this.pendingLocalUpdates.delete(update.id);
     }
     for (const update of local) {
@@ -81,9 +90,7 @@ export class ServerReconciler<S, U> {
     } else {
       this.localState = this.clone(this.serverState);
       // We rely on Map's iteration in order added.
-      for (const update of this.pendingLocalUpdates.values()) {
-        this.localState = this.reducer(this.localState, update);
-      }
+      this.localState = this.reducer(this.localState, [...this.pendingLocalUpdates.values()]);
     }
   }
 }
@@ -108,7 +115,7 @@ export class PowerSyncServerReconciler<S, U> {
     readonly tableName: string,
     readonly docId: string,
     initialState: S,
-    reducer: (state: S, update: U) => S,
+    reducer: (state: S, updates: U[]) => S,
     clone: (state: S) => S
   ) {
     this.reconciler = new ServerReconciler(initialState, reducer, clone);
@@ -164,7 +171,7 @@ export function useServerReconciliation<S, U>(
   tableName: string,
   docId: string,
   initialState: S,
-  reducer: (state: S, update: U) => S,
+  reducer: (state: S, updates: U[]) => S,
   clone: (state: S) => S
 ): { state: S; isLoading: boolean } {
   const powerSync = usePowerSync();
