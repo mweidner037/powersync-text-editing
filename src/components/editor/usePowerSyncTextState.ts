@@ -100,5 +100,5 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     console.error('Error restoring selection', error);
   }
   tr.setMeta('ourRemoteUpdate', true);
-  editor.view.updateState(editor.state.apply(tr));
+  editor.view.updateState(newState.apply(tr));
 }
