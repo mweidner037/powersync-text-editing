@@ -143,13 +143,13 @@ export type CollabTiptapStep =
       step: object;
     };
 
-export function collabTiptapStepReducer(
-  { tr, idList }: { tr: Transaction; idList: IdList },
-  update: CollabTiptapStep[]
-): { tr: Transaction; idList: IdList } {
+/**
+ * Applies the given steps to tr (in-place), returning the resulting IdList.
+ */
+export function applyCollabSteps(tr: Transaction, idList: IdList, steps: CollabTiptapStep[]): IdList {
   const schema = tr.doc.type.schema;
 
-  for (const step of update) {
+  for (const step of steps) {
     switch (step.type) {
       case 'insert': {
         const pos = step.beforeId === null ? 0 : idList.indexOf(step.beforeId, 'left') + 1;
@@ -304,7 +304,7 @@ export function collabTiptapStepReducer(
       console.error('IdList size mismatch (remote)', idList.length, tr.doc.content.size, step);
     }
   }
-  return { tr, idList };
+  return idList;
 }
 
 export function updateToSteps(

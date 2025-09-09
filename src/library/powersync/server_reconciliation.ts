@@ -167,6 +167,10 @@ export class PowerSyncServerReconciler<S, U> {
   }
 }
 
+// TODO: Way to ignore the state until your latest local update has been
+// incorporated (or rejected?). Move inserter here and stack on top?
+// Await insertion + some other condition?
+
 export function useServerReconciliation<S, U>(
   tableName: string,
   docId: string,
