@@ -108,7 +108,7 @@ export class PowerSyncServerReconciler<S, U> {
   onStateChange?: (state: S) => void;
 
   private readonly reconciler: ServerReconciler<S, U>;
-  private readonly stopPromise: Promise<() => Promise<void>>;
+  private readonly trackPromise: Promise<() => Promise<void>>;
 
   constructor(
     readonly powerSync: AbstractPowerSyncDatabase,
@@ -121,7 +121,7 @@ export class PowerSyncServerReconciler<S, U> {
     this.reconciler = new ServerReconciler(initialState, reducer, clone);
 
     const docQuery = sanitizeSQL`json_extract(NEW.data, '$.doc_id') = ${docId}`;
-    this.stopPromise = powerSync.triggers.trackTableDiff({
+    this.trackPromise = powerSync.triggers.trackTableDiff({
       source: tableName,
       columns: ['update', 'server_version'],
       when: { INSERT: docQuery, UPDATE: docQuery },
@@ -129,8 +129,8 @@ export class PowerSyncServerReconciler<S, U> {
         const server: { id: string; update: U }[] = [];
         const local: { id: string; update: U }[] = [];
 
-        const changedRows = await context.withDiff<{ id: string; update: string; is_committed: number }>(`
-          SELECT id, "update", (server_version IS NOT NULL) as is_committed FROM
+        const changedRows = await context.withDiff<{ id: string; update: string; is_committed: number }>(
+          `SELECT id, "update", (server_version IS NOT NULL) as is_committed FROM
           (
             SELECT
               mt.id,
@@ -140,8 +140,8 @@ export class PowerSyncServerReconciler<S, U> {
             FROM "ps_data__${tableName}" mt
             JOIN DIFF ON DIFF.id = mt.id
           )
-          ORDER BY server_version NULLS LAST, rowid
-        `);
+          ORDER BY server_version NULLS LAST, rowid`
+        );
         for (const changedRow of changedRows) {
           const update = JSON.parse(changedRow.update) as U;
           (changedRow.is_committed ? server : local).push({ id: changedRow.id, update });
@@ -151,9 +151,41 @@ export class PowerSyncServerReconciler<S, U> {
 
         this.reconciler.applyUpdates(server, local);
         this.onStateChange?.(this.state);
-        this.onLoaded?.();
       }
     });
+
+    // Do the initial query after setting up the trigger so we don't miss any rows.
+    // TODO: What if there is overlap?
+    this.trackPromise.then(() => this.initialLoad());
+  }
+
+  private async initialLoad() {
+    const initialRows = await this.powerSync.getAll<{ id: string; update: string; is_committed: number }>(
+      `SELECT id, "update", (server_version IS NOT NULL) as is_committed FROM
+      (
+        SELECT
+          mt.id,
+          CAST(json_extract(mt.data, '$.doc_id') as TEXT) AS doc_id,
+          CAST(json_extract(mt.data, '$.update') as TEXT) AS "update",
+          CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version,
+          mt.rowid
+        FROM "ps_data__${this.tableName}" mt
+      )
+      WHERE doc_id=?
+      ORDER BY server_version NULLS LAST, rowid`,
+      [this.docId]
+    );
+
+    const server: { id: string; update: U }[] = [];
+    const local: { id: string; update: U }[] = [];
+    for (const initialRow of initialRows) {
+      const update = JSON.parse(initialRow.update) as U;
+      (initialRow.is_committed ? server : local).push({ id: initialRow.id, update });
+    }
+
+    this.reconciler.applyUpdates(server, local);
+    this.onStateChange?.(this.state);
+    this.onLoaded?.();
   }
 
   get state(): S {
@@ -161,7 +193,7 @@ export class PowerSyncServerReconciler<S, U> {
   }
 
   async destroy() {
-    const stop = await this.stopPromise;
+    const stop = await this.trackPromise;
     await stop();
   }
 }

@@ -206,7 +206,7 @@ function createDecorations(
       );
     } catch (err) {
       // This can happen if the cursor state gets slightly ahead of the editor state - okay.
-      console.error(`Invalid shared cursor for clientId ${cursor.clientId}, skipping`, err);
+      console.log(`Invalid shared cursor for clientId ${cursor.clientId}, skipping`);
     }
   }
 
