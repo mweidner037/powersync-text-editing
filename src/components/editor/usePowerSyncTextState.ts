@@ -43,6 +43,10 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     );
   };
 
+  // TODO: Use an updated queue (similar to isActive) to throttle sending updates to PowerSync,
+  // also using step.merge.
+  // That way, we can avoid making one row per char (but still sync relatively quickly).
+
   // Used to demo concurrency. Not needed in a real app.
   const isActiveRef = useRef(isActive);
   isActiveRef.current = isActive;
