@@ -8,6 +8,7 @@ import { selectionToIds, selectionFromIds } from '@/library/tiptap/selection';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { ElementIdGenerator, IdList } from 'articulated';
 import { useServerReconciliation } from '@/library/powersync/server_reconciliation';
+import { Fragment, Slice } from '@tiptap/pm/model';
 
 function reducer(state: EditorState, updates: CollabTiptapStep[][]): EditorState {
   const tr = state.tr;
@@ -16,7 +17,6 @@ function reducer(state: EditorState, updates: CollabTiptapStep[][]): EditorState
     idList = applyCollabSteps(tr, idList, update);
   }
   setIdListState(tr, idList);
-  tr.setMeta('ourRemoteUpdate', true);
 
   return state.apply(tr);
 }
@@ -66,8 +66,6 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   // On each render, set the editor's state to that indicated by TEXT_UPDATES_TABLE.
   // Except, preserve the selection in a collaboration-aware way using IdList.
 
-  const startingIdList = getIdListState(editor.state).idList;
-
   const initialState = useMemo(() => {
     const tr = editor.state.tr;
     tr.delete(0, tr.doc.content.size);
@@ -78,7 +76,8 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     return editor.state.apply(tr);
   }, [editor]);
 
-  const { state: newState } = useServerReconciliation(
+  const oldReconciliationStateRef = useRef<EditorState | null>(null);
+  const { state: reconciliationState } = useServerReconciliation(
     TEXT_UPDATES_TABLE,
     docID,
     initialState,
@@ -87,18 +86,29 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     (state) => state
   );
 
-  // Restore the starting selection in a collaboration-aware way.
-  // We do this by converting the initial selection to ElementIds and back.
-  const startingSelection = editor.state.selection;
-  const idSelection = selectionToIds(startingSelection, startingIdList);
-  const tr = newState.tr;
-  try {
-    tr.setSelection(selectionFromIds(idSelection, tr.doc, getIdListState(newState).idList));
-  } catch (error) {
-    // This can happen naturally if the state goes backwards somehow. Clear the selection and don't crash.
-    tr.setSelection(TextSelection.create(tr.doc, 0));
-    console.error('Error restoring selection', error);
+  if (reconciliationState !== oldReconciliationStateRef.current) {
+    oldReconciliationStateRef.current = reconciliationState;
+
+    // Preserve the selection in a collaboration-aware way.
+    // We do this by converting the initial selection to ElementIds and back.
+    const idSelection = selectionToIds(editor.state.selection, getIdListState(editor.state).idList);
+
+    // We need to update using a tr derived from editor.state - we can't just set
+    // reconciliationState directly. Do this by rewriting all content in a tr, like y-prosemirror.
+    // TODO: Make a minimal tr based on a diff instead, to help with https://github.com/yjs/y-prosemirror/issues/49
+    const newIdList = getIdListState(reconciliationState).idList;
+    const tr = editor.state.tr;
+    tr.replace(0, tr.doc.content.size, new Slice(Fragment.from(reconciliationState.doc), 0, 0));
+    setIdListState(tr, newIdList);
+    try {
+      tr.setSelection(selectionFromIds(idSelection, tr.doc, newIdList));
+    } catch (error) {
+      // This can happen if the state goes backwards somehow. Clear the selection and don't crash.
+      tr.setSelection(TextSelection.create(tr.doc, 0));
+      console.error('Error restoring selection', error);
+    }
+    tr.setMeta('ourRemoteUpdate', true);
+
+    editor.view.dispatch(tr);
   }
-  tr.setMeta('ourRemoteUpdate', true);
-  editor.view.updateState(newState.apply(tr));
 }
