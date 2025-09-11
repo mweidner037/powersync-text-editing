@@ -22,9 +22,8 @@ function reducer(state: EditorState, updates: CollabTiptapStep[][]): EditorState
   return state.apply(tr);
 }
 
-export function usePowerSyncTextState(editor: Editor, docID: string, userID: string) {
+export function usePowerSyncTextState(editor: Editor, docID: string, userID: string, isActive = true) {
   const powerSync = usePowerSync();
-
   // ------------
   // Our updates
   // ------------
@@ -44,6 +43,18 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     );
   };
 
+  // Used to demo concurrency. Not needed in a real app.
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+  const queuedUpdatesRef = useRef<CollabTiptapStep[][]>([]);
+  if (isActiveRef.current && queuedUpdatesRef.current.length > 0) {
+    const queuedUpdates = queuedUpdatesRef.current;
+    queuedUpdatesRef.current = [];
+    void (async () => {
+      for (const update of queuedUpdates) await doUpdate(update);
+    })();
+  }
+
   const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator(() => crypto.randomUUID()));
 
   useEffect(() => {
@@ -57,7 +68,10 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
       // With Tiptap, we instead need to update it afterwards and trust plugins to respect isValid.
       editor.commands.setIdListState(newIdList);
 
-      if (steps.length > 0) void doUpdate(steps);
+      if (steps.length > 0) {
+        if (isActiveRef.current) void doUpdate(steps);
+        else queuedUpdatesRef.current.push(steps);
+      }
     }
 
     editor.on('update', onUpdate);
@@ -99,6 +113,7 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   );
 
   if (
+    isActive &&
     !isLoading &&
     reconciliationState !== oldReconciliationStateRef.current &&
     // We need to wait until PowerSync's state includes the editor's latest local update.

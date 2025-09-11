@@ -23,6 +23,7 @@ import { ElementId, ElementIdGenerator, IdList } from 'articulated';
 // new ElementIds.
 // TODO: What happens if the step results in a schema-invalid state? Will maybeStep skip nicely
 // or do we need to catch an exc?
+// TODO: Test delete-all followed by rebased insertion that's outside of the new ID range.
 
 export type CollabTiptapStep =
   | {

@@ -1,6 +1,6 @@
 import { useQuery } from '@powersync/react';
-import { Box, CircularProgress, Typography } from '@mui/material';
-import { Suspense } from 'react';
+import { Box, CircularProgress, Typography, Switch, FormControlLabel } from '@mui/material';
+import { Suspense, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { DOCUMENTS_TABLE } from '@/library/powersync/AppSchema';
@@ -36,6 +36,8 @@ export default function DocumentEditPage() {
 const DocumentEditSection = ({ docID }: { docID: string }) => {
   const supabase = useSupabase();
 
+  const [isActive, setIsActive] = useState(true);
+
   const {
     data: [documentRecord],
     isLoading
@@ -60,7 +62,11 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
 
   return (
     <NavigationPage title={`Document: ${documentRecord.name}`}>
-      <TiptapEditor docID={docID} userID={userID} />
+      <FormControlLabel
+        control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
+        label="Sync Active"
+      />
+      <TiptapEditor docID={docID} userID={userID} isActive={isActive} />
     </NavigationPage>
   );
 };
