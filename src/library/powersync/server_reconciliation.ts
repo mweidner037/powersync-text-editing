@@ -1,6 +1,6 @@
 import { usePowerSync } from '@powersync/react';
 import { AbstractPowerSyncDatabase, sanitizeSQL } from '@powersync/web';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export class ServerReconciler<S, U> {
   private localState: S;
@@ -105,10 +105,21 @@ export class ServerReconciler<S, U> {
 export class PowerSyncServerReconciler<S, U> {
   // Event handlers (lazy coding).
   onLoaded?: () => void;
-  onStateChange?: (state: S) => void;
+  onStateChange?: () => void;
 
   private readonly reconciler: ServerReconciler<S, U>;
   private readonly trackPromise: Promise<() => Promise<void>>;
+
+  // We need these to track which local updates have made it into the PowerSync state,
+  // given that inserts are async.
+  /**
+   * The ids of all local updates in the current state.
+   */
+  readonly localIds = new Set<string>();
+  /**
+   * The ids of all server updates in the current state.
+   */
+  readonly serverIds = new Set<string>();
 
   constructor(
     readonly powerSync: AbstractPowerSyncDatabase,
@@ -149,8 +160,7 @@ export class PowerSyncServerReconciler<S, U> {
 
         // TODO: Handle deletes (time travel)?
 
-        this.reconciler.applyUpdates(server, local);
-        this.onStateChange?.(this.state);
+        this.applyUpdates(server, local);
       }
     });
 
@@ -183,9 +193,20 @@ export class PowerSyncServerReconciler<S, U> {
       (initialRow.is_committed ? server : local).push({ id: initialRow.id, update });
     }
 
-    this.reconciler.applyUpdates(server, local);
-    this.onStateChange?.(this.state);
+    this.applyUpdates(server, local);
     this.onLoaded?.();
+  }
+
+  private applyUpdates(server: { id: string; update: U }[], local: { id: string; update: U }[]): void {
+    this.reconciler.applyUpdates(server, local);
+    for (const { id } of server) {
+      this.localIds.delete(id);
+      this.serverIds.add(id);
+    }
+    for (const { id } of local) {
+      this.localIds.add(id);
+    }
+    this.onStateChange?.();
   }
 
   get state(): S {
@@ -208,17 +229,19 @@ export function useServerReconciliation<S, U>(
   initialState: S,
   reducer: (state: S, updates: U[]) => S,
   clone: (state: S) => S
-): { state: S; isLoading: boolean } {
+): { state: S; isLoading: boolean; localIds: Set<string>; serverIds: Set<string> } {
   const powerSync = usePowerSync();
 
+  const reconcilerRef = useRef<PowerSyncServerReconciler<S, U> | null>(null);
+  const [, rerender] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [state, setState] = useState<S>(initialState);
 
   useEffect(
     () => {
       const reconciler = new PowerSyncServerReconciler(powerSync, tableName, docId, initialState, reducer, clone);
+      reconcilerRef.current = reconciler;
+      reconciler.onStateChange = () => rerender((count) => count + 1);
       reconciler.onLoaded = () => setIsLoading(false);
-      reconciler.onStateChange = setState;
 
       setIsLoading(true);
 
@@ -226,6 +249,7 @@ export function useServerReconciliation<S, U>(
         reconciler.onLoaded = undefined;
         reconciler.onStateChange = undefined;
         void reconciler.destroy();
+        reconcilerRef.current = null;
       };
     },
     // Don't watch reducer or clone in case they change identities without
@@ -233,5 +257,10 @@ export function useServerReconciliation<S, U>(
     [tableName, docId, initialState]
   );
 
-  return { state, isLoading };
+  return {
+    state: reconcilerRef.current === null ? initialState : reconcilerRef.current.state,
+    isLoading,
+    localIds: reconcilerRef.current?.localIds || new Set(),
+    serverIds: reconcilerRef.current?.serverIds ?? new Set()
+  };
 }

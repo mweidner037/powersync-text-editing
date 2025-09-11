@@ -9,6 +9,7 @@ import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { ElementIdGenerator, IdList } from 'articulated';
 import { useServerReconciliation } from '@/library/powersync/server_reconciliation';
 import { Slice } from '@tiptap/pm/model';
+import { v4 as uuidv4 } from 'uuid';
 
 function reducer(state: EditorState, updates: CollabTiptapStep[][]): EditorState {
   const tr = state.tr;
@@ -28,14 +29,18 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   // Our updates
   // ------------
 
+  const lastUpdateIdRef = useRef<string | null>(null);
+
   const doUpdate = async (update: CollabTiptapStep[]) => {
+    const id = uuidv4();
+    lastUpdateIdRef.current = id;
     await powerSync.execute(
       `INSERT INTO
                 ${TEXT_UPDATES_TABLE}
                     (id, created_at, created_by, "update", doc_id)
                 VALUES
-                    (uuid(), datetime(), ?, ?, ?)`,
-      [userID, JSON.stringify(update), docID!]
+                    (?, datetime(), ?, ?, ?)`,
+      [id, userID, JSON.stringify(update), docID!]
     );
   };
 
@@ -77,7 +82,12 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   }, [editor]);
 
   const oldReconciliationStateRef = useRef<EditorState | null>(null);
-  const { state: reconciliationState, isLoading } = useServerReconciliation(
+  const {
+    state: reconciliationState,
+    isLoading,
+    localIds,
+    serverIds
+  } = useServerReconciliation(
     TEXT_UPDATES_TABLE,
     docID,
     initialState,
@@ -86,7 +96,15 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     (state) => state
   );
 
-  if (!isLoading && reconciliationState !== oldReconciliationStateRef.current) {
+  if (
+    !isLoading &&
+    reconciliationState !== oldReconciliationStateRef.current &&
+    // We need to wait until PowerSync's state includes the editor's latest local update.
+    // Otherwise the editor's state goes backwards and our restore-selection logic gets confused.
+    (lastUpdateIdRef.current === null ||
+      localIds.has(lastUpdateIdRef.current) ||
+      serverIds.has(lastUpdateIdRef.current))
+  ) {
     oldReconciliationStateRef.current = reconciliationState;
 
     // Preserve the selection in a collaboration-aware way.
