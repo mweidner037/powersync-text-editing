@@ -74,9 +74,9 @@ export class ServerReconciler<S, U> {
    *
    * You don't need to call this for server echoes of local updates -
    * applyServerUpdates will delete those automatically. Instead, use this
-   * to delete local updates that the server rejected or changed ids.
+   * to delete local updates that the server rejected or that changed ids.
    */
-  deletePending(ids: string[]): void {
+  deletePending(ids: Iterable<string>): void {
     let changed = false;
     for (const id of ids) {
       changed ||= this.pendingLocalUpdates.delete(id);
@@ -219,10 +219,6 @@ export class PowerSyncServerReconciler<S, U> {
   }
 }
 
-// TODO: Way to ignore the state until your latest local update has been
-// incorporated (or rejected?). Move inserter here and stack on top?
-// Await insertion + some other condition?
-
 export function useServerReconciliation<S, U>(
   tableName: string,
   docId: string,
@@ -253,7 +249,7 @@ export function useServerReconciliation<S, U>(
       };
     },
     // Don't watch reducer or clone in case they change identities without
-    // actually changing (caller forgot to useMemo / useCallback).
+    // actually changing (caller forgot to useCallback).
     [tableName, docId, initialState]
   );
 

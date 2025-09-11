@@ -47,6 +47,8 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   const idGenRef = useRef<ElementIdGenerator>(new ElementIdGenerator(() => crypto.randomUUID()));
 
   useEffect(() => {
+    lastUpdateIdRef.current = null;
+
     function onUpdate({ transaction, editor }: EditorEvents['update']) {
       const [steps, newIdList] = updateToSteps(transaction, getIdListState(editor.state).idList, idGenRef.current);
       // It would be cleaner to add the new IdList to transaction and then dispatch it,
