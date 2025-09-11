@@ -150,6 +150,7 @@ export function applyCollabSteps(tr: Transaction, idList: IdList, steps: CollabT
   const schema = tr.doc.type.schema;
 
   for (const step of steps) {
+    console.log('Apply step', step, tr.doc);
     switch (step.type) {
       case 'insert': {
         const pos = step.beforeId === null ? 0 : idList.indexOf(step.beforeId, 'left') + 1;
@@ -322,13 +323,24 @@ export function updateToSteps(
     const docBeforeStep = tr.docs[i];
     const docAfterStep = i === tr.steps.length - 1 ? tr.doc : tr.docs[i + 1];
 
+    console.log('translate step', step, docBeforeStep);
+
     if (step instanceof ReplaceStep) {
       if (step.from < step.to) {
         // Delete or delete-and-insert.
         const fromId = idList.at(step.from);
         const toInclId = step.to === step.from + 1 ? undefined : idList.at(step.to - 1);
         idList = idList.deleteRange(step.from, step.to);
-        if (step.slice.size === 0) {
+
+        // Hack for select-all + delete case: account for any content that ProseMirror auto-inserts to
+        // conform to the schema.
+        let slice = step.slice;
+        if (step.from === 0 && step.to === docBeforeStep.content.size && docAfterStep.content.size > 0) {
+          console.log('delete-all HACK');
+          slice = new Slice(docAfterStep.content, 0, 0);
+        }
+
+        if (slice.size === 0) {
           collabSteps.push({
             type: 'replace',
             fromId,
@@ -336,14 +348,14 @@ export function updateToSteps(
           });
         } else {
           const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
-          idList = idList.insertBefore(fromId, newId, step.slice.size);
+          idList = idList.insertBefore(fromId, newId, slice.size);
           collabSteps.push({
             type: 'replace',
             fromId,
             toInclId,
             insert: {
               newId,
-              slice: step.slice.toJSON()
+              slice: slice.toJSON()
             }
           });
         }
@@ -351,6 +363,7 @@ export function updateToSteps(
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
         const newId = idGen.generateAfter(beforeId);
+        console.log('insert', beforeId, newId, [...idList.valuesWithIsDeleted()]);
         collabSteps.push({
           type: 'insert',
           beforeId,
@@ -451,6 +464,14 @@ export function updateToSteps(
     }
 
     if (idList.length !== docAfterStep.content.size) {
+      // TODO: This can happen if the literal result of applying the step violates the schema,
+      // hence ProseMirror fixes up the doc.
+      // E.g. if you select-all + delete but the top-level schema is block+: ProseMirror will
+      // create a new empty paragraph.
+      // We need to fix up IdList to match, or if we can't, skip over this step (preserving any new ids?).
+      // For now, the aboce code has a hack specific to the replace-all case, but there are non-doc nodes that
+      // also have a block+ child schema (e.g. blockquote).
+
       console.error(
         'IdList size mismatch (local)',
         idList.length,
