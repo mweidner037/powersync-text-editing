@@ -13,7 +13,7 @@ export class ServerReconciler<S, U> {
     private readonly reducer: (state: S, updates: U[]) => S,
     private readonly clone: (state: S) => S
   ) {
-    this.serverState = clone(initialState);
+    this.serverState = this.clone(this.initialState);
     this.localState = this.serverState;
   }
 
@@ -228,9 +228,9 @@ export function useServerReconciliation<S, U>(
         void reconciler.destroy();
       };
     },
-    // Don't watch initialState, reducer, or clone in case they change identities without
+    // Don't watch reducer or clone in case they change identities without
     // actually changing (caller forgot to useMemo / useCallback).
-    [tableName, docId]
+    [tableName, docId, initialState]
   );
 
   return { state, isLoading };

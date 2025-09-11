@@ -8,7 +8,7 @@ import { selectionToIds, selectionFromIds } from '@/library/tiptap/selection';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { ElementIdGenerator, IdList } from 'articulated';
 import { useServerReconciliation } from '@/library/powersync/server_reconciliation';
-import { Fragment, Slice } from '@tiptap/pm/model';
+import { Slice } from '@tiptap/pm/model';
 
 function reducer(state: EditorState, updates: CollabTiptapStep[][]): EditorState {
   const tr = state.tr;
@@ -77,7 +77,7 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
   }, [editor]);
 
   const oldReconciliationStateRef = useRef<EditorState | null>(null);
-  const { state: reconciliationState } = useServerReconciliation(
+  const { state: reconciliationState, isLoading } = useServerReconciliation(
     TEXT_UPDATES_TABLE,
     docID,
     initialState,
@@ -86,7 +86,7 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     (state) => state
   );
 
-  if (reconciliationState !== oldReconciliationStateRef.current) {
+  if (!isLoading && reconciliationState !== oldReconciliationStateRef.current) {
     oldReconciliationStateRef.current = reconciliationState;
 
     // Preserve the selection in a collaboration-aware way.
@@ -98,7 +98,7 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     // TODO: Make a minimal tr based on a diff instead, to help with https://github.com/yjs/y-prosemirror/issues/49
     const newIdList = getIdListState(reconciliationState).idList;
     const tr = editor.state.tr;
-    tr.replace(0, tr.doc.content.size, new Slice(Fragment.from(reconciliationState.doc), 0, 0));
+    tr.replace(0, tr.doc.content.size, new Slice(reconciliationState.doc.content, 0, 0));
     setIdListState(tr, newIdList);
     try {
       tr.setSelection(selectionFromIds(idSelection, tr.doc, newIdList));
@@ -109,6 +109,6 @@ export function usePowerSyncTextState(editor: Editor, docID: string, userID: str
     }
     tr.setMeta('ourRemoteUpdate', true);
 
-    editor.view.dispatch(tr);
+    editor.view.updateState(editor.state.apply(tr));
   }
 }
