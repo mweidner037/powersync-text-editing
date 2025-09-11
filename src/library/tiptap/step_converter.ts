@@ -347,7 +347,7 @@ export function updateToSteps(
             toInclId
           });
         } else {
-          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
+          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), slice.size);
           idList = idList.insertBefore(fromId, newId, slice.size);
           collabSteps.push({
             type: 'replace',
@@ -362,7 +362,7 @@ export function updateToSteps(
       } else {
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
-        const newId = idGen.generateAfter(beforeId);
+        const newId = idGen.generateAfter(beforeId, step.slice.size);
         console.log('insert', beforeId, newId, [...idList.valuesWithIsDeleted()]);
         collabSteps.push({
           type: 'insert',
@@ -376,7 +376,7 @@ export function updateToSteps(
       if (step.from < step.gapFrom || step.gapTo < step.to) {
         const fromId = idList.at(step.from);
         const toInclId = idList.at(step.to - 1);
-        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
+        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), step.slice.size);
         const gapFromIdExcl = idList.at(step.gapFrom - 1);
         const gapToId = idList.at(step.gapTo);
         collabSteps.push({
@@ -404,7 +404,7 @@ export function updateToSteps(
         // Insert only.
         const part1BeforeId = step.from === 0 ? null : idList.at(step.from - 1);
         const part2AfterId = step.to === idList.length ? null : idList.at(step.to);
-        const newId = idGen.generateAfter(part1BeforeId);
+        const newId = idGen.generateAfter(part1BeforeId, step.slice.size);
         collabSteps.push({
           type: 'insertAround',
           part1BeforeId,
