@@ -21,6 +21,7 @@ import { ElementId, ElementIdGenerator, IdList } from 'articulated';
 // TODO: Alternative to ReplaceAroundStep when you are just changing a block node type
 // (e.g. paragraph -> heading), which just does LWW on the block type without creating any
 // new ElementIds.
+// TODO: Test delete-all followed by rebased insertion that's outside of the new ID range.
 
 export type CollabTiptapStep =
   | {
@@ -143,13 +144,13 @@ export type CollabTiptapStep =
       step: object;
     };
 
-export function collabTiptapStepReducer(
-  { tr, idList }: { tr: Transaction; idList: IdList },
-  update: CollabTiptapStep[]
-): { tr: Transaction; idList: IdList } {
+/**
+ * Applies the given steps to tr (in-place), returning the resulting IdList.
+ */
+export function applyCollabSteps(tr: Transaction, idList: IdList, steps: CollabTiptapStep[]): IdList {
   const schema = tr.doc.type.schema;
 
-  for (const step of update) {
+  for (const step of steps) {
     switch (step.type) {
       case 'insert': {
         const pos = step.beforeId === null ? 0 : idList.indexOf(step.beforeId, 'left') + 1;
@@ -157,7 +158,7 @@ export function collabTiptapStepReducer(
 
         const pmStep = new ReplaceStep(pos, pos, slice);
         idList = idList.insertAfter(step.beforeId, step.newId, slice.size);
-        if (!tr.maybeStep(pmStep)) {
+        if (!maybeMaybeStep(tr, pmStep)) {
           console.log('Rebased insert failed, skipping', step, pmStep);
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
@@ -171,7 +172,7 @@ export function collabTiptapStepReducer(
         const slice = step.insert === undefined ? undefined : Slice.fromJSON(schema, step.insert.slice);
 
         const pmStep = new ReplaceStep(from, toIncl + 1, slice || Slice.empty);
-        if (tr.maybeStep(pmStep)) {
+        if (maybeMaybeStep(tr, pmStep)) {
           idList = idList.deleteRange(pmStep.from, pmStep.to);
           if (step.insert) {
             idList = idList.insertBefore(step.fromId, step.insert.newId, slice!.size);
@@ -201,7 +202,7 @@ export function collabTiptapStepReducer(
           { bunchId: step.newId.bunchId, counter: step.newId.counter + step.insert },
           slice.size - step.insert
         );
-        if (!tr.maybeStep(pmStep)) {
+        if (!maybeMaybeStep(tr, pmStep)) {
           console.log('Rebased insertAround failed, skipping', step, pmStep);
           // Still insert the ElementIds but mark them as deleted, in case they are
           // referenced in future operations.
@@ -223,7 +224,7 @@ export function collabTiptapStepReducer(
         // which hasn't changed (it's the new content).
 
         const pmStep = new ReplaceAroundStep(from, toIncl + 1, gapFromExcl + 1, gapTo, slice, step.insert);
-        if (tr.maybeStep(pmStep)) {
+        if (maybeMaybeStep(tr, pmStep)) {
           // Delete the parts around each gap, then insert the slice's new ElementIds,
           // leaving the gap's ElementIds alone.
           // Do the second part first so we don't need to rebase indices.
@@ -266,8 +267,8 @@ export function collabTiptapStepReducer(
         if (from < to) {
           // I believe these steps will always succeed (skipping any nodes that are
           // incompatible with the mark), but we maybeStep just in case.
-          if (step.isAdd) tr.maybeStep(new AddMarkStep(from, to, mark));
-          else tr.maybeStep(new RemoveMarkStep(from, to, mark));
+          if (step.isAdd) maybeMaybeStep(tr, new AddMarkStep(from, to, mark));
+          else maybeMaybeStep(tr, new RemoveMarkStep(from, to, mark));
         }
         break;
       }
@@ -279,8 +280,8 @@ export function collabTiptapStepReducer(
         // (e.g. because it was true-replaced concurrently). The code doesn't appear to check compatibility,
         // meaning this step will never fail but it also can lead to a schema-violating state.
         // For now we just maybeStep and hope nothing crazy happens.
-        if (step.isAdd) tr.maybeStep(new AddNodeMarkStep(pos, mark));
-        else tr.maybeStep(new RemoveNodeMarkStep(pos, mark));
+        if (step.isAdd) maybeMaybeStep(tr, new AddNodeMarkStep(pos, mark));
+        else maybeMaybeStep(tr, new RemoveNodeMarkStep(pos, mark));
         break;
       }
       case 'nodeAttr': {
@@ -288,12 +289,12 @@ export function collabTiptapStepReducer(
         if (pos === -1) continue;
         // From looking at the code, I believe this will skip changing the node if step.attr
         // isn't valid for its type (e.g. because it was true-replaced concurrently) - okay.
-        tr.maybeStep(new AttrStep(pos, step.attr, step.value));
+        maybeMaybeStep(tr, new AttrStep(pos, step.attr, step.value));
         break;
       }
       case 'docAttr': {
         const pmStep = Step.fromJSON(schema, step.step);
-        tr.maybeStep(pmStep);
+        maybeMaybeStep(tr, pmStep);
         break;
       }
       default:
@@ -304,7 +305,22 @@ export function collabTiptapStepReducer(
       console.error('IdList size mismatch (remote)', idList.length, tr.doc.content.size, step);
     }
   }
-  return { tr, idList };
+  return idList;
+}
+
+/**
+ * Tries the given step and returns whether it succeeded (if not, the tr is unaffected).
+ */
+function maybeMaybeStep(tr: Transaction, step: Step): boolean {
+  try {
+    return !tr.maybeStep(step).failed;
+  } catch (error) {
+    // For unknown reasons, a rebased step will sometimes throw an error instead
+    // of merely returning failure. This is common with ReplaceAroundSteps.
+    // We want to skip the bad rebase instead of ruining the doc.
+    console.error('maybeStep errored instead of failing', step, (error as { message?: string }).message);
+    return false;
+  }
 }
 
 export function updateToSteps(
@@ -328,6 +344,7 @@ export function updateToSteps(
         const fromId = idList.at(step.from);
         const toInclId = step.to === step.from + 1 ? undefined : idList.at(step.to - 1);
         idList = idList.deleteRange(step.from, step.to);
+
         if (step.slice.size === 0) {
           collabSteps.push({
             type: 'replace',
@@ -335,7 +352,7 @@ export function updateToSteps(
             toInclId
           });
         } else {
-          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
+          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), step.slice.size);
           idList = idList.insertBefore(fromId, newId, step.slice.size);
           collabSteps.push({
             type: 'replace',
@@ -350,7 +367,7 @@ export function updateToSteps(
       } else {
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
-        const newId = idGen.generateAfter(beforeId);
+        const newId = idGen.generateAfter(beforeId, step.slice.size);
         collabSteps.push({
           type: 'insert',
           beforeId,
@@ -363,7 +380,7 @@ export function updateToSteps(
       if (step.from < step.gapFrom || step.gapTo < step.to) {
         const fromId = idList.at(step.from);
         const toInclId = idList.at(step.to - 1);
-        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1));
+        const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), step.slice.size);
         const gapFromIdExcl = idList.at(step.gapFrom - 1);
         const gapToId = idList.at(step.gapTo);
         collabSteps.push({
@@ -391,7 +408,7 @@ export function updateToSteps(
         // Insert only.
         const part1BeforeId = step.from === 0 ? null : idList.at(step.from - 1);
         const part2AfterId = step.to === idList.length ? null : idList.at(step.to);
-        const newId = idGen.generateAfter(part1BeforeId);
+        const newId = idGen.generateAfter(part1BeforeId, step.slice.size);
         collabSteps.push({
           type: 'insertAround',
           part1BeforeId,

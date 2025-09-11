@@ -139,41 +139,71 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
-    const transaction = await database.getNextCrudTransaction();
+    // Upload data following the pre-sorted batch strategy from
+    // https://docs.powersync.com/tutorials/client/performance/supabase-connector-performance.
+    // This ensures that rapid updates (to text and shared cursors) are sent in batches
+    // instead of one at a time with awaits in between.
+
+    const transaction = await database.getCrudBatch();
 
     if (!transaction) {
       return;
     }
 
-    let lastOp: CrudEntry | null = null;
     try {
-      // Note: If transactional consistency is important, use database functions
-      // or edge functions to process the entire transaction in a single call.
+      // Group operations by type and table
+      const putOps: { [table: string]: any[] } = {};
+      const deleteOps: { [table: string]: string[] } = {};
+      let patchOps: CrudEntry[] = [];
+
+      // Organize operations
       for (const op of transaction.crud) {
-        lastOp = op;
-        const table = this.client.from(op.table);
-        let result: any;
         switch (op.op) {
           case UpdateType.PUT:
             // Skip old presence rows as described in the usePresence docs.
             if (op.table === PRESENCE_TABLE && Date.now() >= op.opData!.expires_at_local * 1000) {
               continue;
             }
-            const record = { ...op.opData, id: op.id };
-            result = await table.upsert(record);
+            if (!putOps[op.table]) {
+              putOps[op.table] = [];
+            }
+            putOps[op.table].push({ ...op.opData, id: op.id });
             break;
           case UpdateType.PATCH:
-            result = await table.update(op.opData).eq('id', op.id);
+            patchOps.push(op);
             break;
           case UpdateType.DELETE:
-            result = await table.delete().eq('id', op.id);
+            if (!deleteOps[op.table]) {
+              deleteOps[op.table] = [];
+            }
+            deleteOps[op.table].push(op.id);
             break;
         }
+      }
 
+      // Execute bulk operations
+      for (const table of Object.keys(putOps)) {
+        const result = await this.client.from(table).upsert(putOps[table]);
         if (result.error) {
           console.error(result.error);
-          result.error.message = `Could not update Supabase. Received error: ${result.error.message}`;
-          throw result.error;
+          throw new Error(`Could not bulk PUT data to Supabase table ${table}: ${JSON.stringify(result)}`);
+        }
+      }
+
+      for (const table of Object.keys(deleteOps)) {
+        const result = await this.client.from(table).delete().in('id', deleteOps[table]);
+        if (result.error) {
+          console.error(result.error);
+          throw new Error(`Could not bulk DELETE data from Supabase table ${table}: ${JSON.stringify(result)}`);
+        }
+      }
+
+      // Execute PATCH operations individually since they can't be easily batched
+      for (const op of patchOps) {
+        const result = await this.client.from(op.table).update(op.opData).eq('id', op.id);
+        if (result.error) {
+          console.error(result.error);
+          throw new Error(`Could not PATCH data in Supabase: ${JSON.stringify(result)}`);
         }
       }
 
@@ -189,7 +219,7 @@ export class SupabaseConnector extends BaseObserver<SupabaseConnectorListener> i
          * If protecting against data loss is important, save the failing records
          * elsewhere instead of discarding, and/or notify the user.
          */
-        console.error('Data upload error - discarding:', lastOp, ex);
+        console.error('Data upload error - discarding transaction:', ex);
         await transaction.complete();
       } else {
         // Error may be retryable - e.g. network error or temporary server error.

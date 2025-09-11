@@ -11,9 +11,10 @@ import './styles.css';
 export interface TiptapEditorProps {
   docID: string;
   userID: string;
+  isActive: boolean;
 }
 
-export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
+export const TiptapEditor = ({ docID, userID, isActive }: TiptapEditorProps) => {
   // Local client info for shared cursors
 
   const userDataRef = useRef<SharedCursorUserInfo | null>(null);
@@ -33,8 +34,8 @@ export const TiptapEditor = ({ docID, userID }: TiptapEditorProps) => {
     shouldRerenderOnTransaction: false
   });
 
-  usePowerSyncTextState(editor, docID, userID);
-  useSharedCursors(editor, docID, userID, userDataRef.current);
+  usePowerSyncTextState(editor, docID, userID, isActive);
+  useSharedCursors(editor, docID, userID, userDataRef.current, isActive);
 
   // Render
 

@@ -18,7 +18,13 @@ interface PresenceData {
   selection: IdSelection | null;
 }
 
-export function useSharedCursors(editor: Editor, docID: string, userID: string, userInfo: SharedCursorUserInfo) {
+export function useSharedCursors(
+  editor: Editor,
+  docID: string,
+  userID: string,
+  userInfo: SharedCursorUserInfo,
+  isActive = true
+) {
   const [setPresenceData, presenceStates] = usePresence(
     PRESENCE_TABLE,
     docID,
@@ -33,9 +39,15 @@ export function useSharedCursors(editor: Editor, docID: string, userID: string, 
   // Our shared cursor
   // ------------
 
+  // Used to demo concurrency. Not needed in a real app.
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
   const updatedSharedCursor = useMemo(
     () =>
       _.throttle((selection: IdSelection) => {
+        if (!isActiveRef.current) return;
+
         setPresenceData(
           JSON.stringify({
             userInfo,
@@ -88,5 +100,5 @@ export function useSharedCursors(editor: Editor, docID: string, userID: string, 
       user: data.userInfo
     };
   });
-  editor.commands.setSharedCursors(cursors);
+  if (isActive) editor.commands.setSharedCursors(cursors);
 }
