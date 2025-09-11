@@ -150,7 +150,6 @@ export function applyCollabSteps(tr: Transaction, idList: IdList, steps: CollabT
   const schema = tr.doc.type.schema;
 
   for (const step of steps) {
-    console.log('Apply step', step, tr.doc);
     switch (step.type) {
       case 'insert': {
         const pos = step.beforeId === null ? 0 : idList.indexOf(step.beforeId, 'left') + 1;
@@ -323,8 +322,6 @@ export function updateToSteps(
     const docBeforeStep = tr.docs[i];
     const docAfterStep = i === tr.steps.length - 1 ? tr.doc : tr.docs[i + 1];
 
-    console.log('translate step', step, docBeforeStep);
-
     if (step instanceof ReplaceStep) {
       if (step.from < step.to) {
         // Delete or delete-and-insert.
@@ -336,7 +333,6 @@ export function updateToSteps(
         // conform to the schema.
         let slice = step.slice;
         if (step.from === 0 && step.to === docBeforeStep.content.size && docAfterStep.content.size > 0) {
-          console.log('delete-all HACK');
           slice = new Slice(docAfterStep.content, 0, 0);
         }
 
@@ -363,7 +359,6 @@ export function updateToSteps(
         // Insert only.
         const beforeId = step.from === 0 ? null : idList.at(step.from - 1);
         const newId = idGen.generateAfter(beforeId, step.slice.size);
-        console.log('insert', beforeId, newId, [...idList.valuesWithIsDeleted()]);
         collabSteps.push({
           type: 'insert',
           beforeId,
