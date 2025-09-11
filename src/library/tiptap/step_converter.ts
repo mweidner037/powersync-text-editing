@@ -21,6 +21,8 @@ import { ElementId, ElementIdGenerator, IdList } from 'articulated';
 // TODO: Alternative to ReplaceAroundStep when you are just changing a block node type
 // (e.g. paragraph -> heading), which just does LWW on the block type without creating any
 // new ElementIds.
+// TODO: What happens if the step results in a schema-invalid state? Will maybeStep skip nicely
+// or do we need to catch an exc?
 
 export type CollabTiptapStep =
   | {
@@ -329,29 +331,22 @@ export function updateToSteps(
         const toInclId = step.to === step.from + 1 ? undefined : idList.at(step.to - 1);
         idList = idList.deleteRange(step.from, step.to);
 
-        // Hack for select-all + delete case: account for any content that ProseMirror auto-inserts to
-        // conform to the schema.
-        let slice = step.slice;
-        if (step.from === 0 && step.to === docBeforeStep.content.size && docAfterStep.content.size > 0) {
-          slice = new Slice(docAfterStep.content, 0, 0);
-        }
-
-        if (slice.size === 0) {
+        if (step.slice.size === 0) {
           collabSteps.push({
             type: 'replace',
             fromId,
             toInclId
           });
         } else {
-          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), slice.size);
-          idList = idList.insertBefore(fromId, newId, slice.size);
+          const newId = idGen.generateAfter(step.from === 0 ? null : idList.at(step.from - 1), step.slice.size);
+          idList = idList.insertBefore(fromId, newId, step.slice.size);
           collabSteps.push({
             type: 'replace',
             fromId,
             toInclId,
             insert: {
               newId,
-              slice: slice.toJSON()
+              slice: step.slice.toJSON()
             }
           });
         }
@@ -459,14 +454,6 @@ export function updateToSteps(
     }
 
     if (idList.length !== docAfterStep.content.size) {
-      // TODO: This can happen if the literal result of applying the step violates the schema,
-      // hence ProseMirror fixes up the doc.
-      // E.g. if you select-all + delete but the top-level schema is block+: ProseMirror will
-      // create a new empty paragraph.
-      // We need to fix up IdList to match, or if we can't, skip over this step (preserving any new ids?).
-      // For now, the aboce code has a hack specific to the replace-all case, but there are non-doc nodes that
-      // also have a block+ child schema (e.g. blockquote).
-
       console.error(
         'IdList size mismatch (local)',
         idList.length,
