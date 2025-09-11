@@ -149,7 +149,7 @@ export class PowerSyncServerReconciler<S, U> {
               CAST(json_extract(mt.data, '$.server_version') as INTEGER) AS server_version,
               mt.rowid
             FROM "ps_data__${tableName}" mt
-            JOIN DIFF ON DIFF.id = mt.id
+            WHERE id IN (SELECT id FROM DIFF)
           )
           ORDER BY server_version NULLS LAST, rowid`
         );
