@@ -2,7 +2,8 @@ import { usePowerSync } from '@powersync/react';
 import {
   AbstractPowerSyncDatabase,
   PowerSyncBackendConnector,
-  StreamingSyncRequestParameterType
+  StreamingSyncRequestParameterType,
+  SyncClientImplementation
 } from '@powersync/web';
 import { ReactNode } from 'react';
 import _ from 'lodash';
@@ -55,7 +56,7 @@ export const SetPowerSyncParams = ({ connector, params, children }: SetPowerSync
     state.propParams = params;
     state.promise = (async () => {
       // TODO: Allow passing other options here.
-      await powerSync.connect(connector, { params });
+      await powerSync.connect(connector, { params, clientImplementation: SyncClientImplementation.RUST });
       state.activeParams = params;
     })();
   }

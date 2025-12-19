@@ -2,7 +2,7 @@ import { AppSchema } from '@/library/powersync/AppSchema';
 import { SupabaseConnector } from '@/library/powersync/SupabaseConnector';
 import { CircularProgress } from '@mui/material';
 import { PowerSyncContext } from '@powersync/react';
-import { createBaseLogger, LogLevel, PowerSyncDatabase } from '@powersync/web';
+import { createBaseLogger, LogLevel, PowerSyncDatabase, SyncClientImplementation } from '@powersync/web';
 import React, { Suspense } from 'react';
 import { NavigationPanelContextProvider } from '../navigation/NavigationPanelContext';
 
@@ -31,7 +31,7 @@ export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
 
     connector.init();
     powerSync.init();
-    powerSync.connect(connector);
+    powerSync.connect(connector, { clientImplementation: SyncClientImplementation.RUST });
   }
 
   return (
