@@ -13,7 +13,7 @@ export default function DocumentEditPage() {
 
   const [isActive, setIsActive] = useState(true);
 
-  const { data, isLoading } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID], {
+  const queryOutput = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID], {
     // Wait for all streams associated to this document to load before showing the document.
     streams: [
       { name: 'current_document_documents', parameters: { current_doc_id: docID }, waitForStream: true },
@@ -21,6 +21,9 @@ export default function DocumentEditPage() {
       { name: 'current_document_presence', parameters: { current_doc_id: docID }, waitForStream: true }
     ]
   });
+
+  console.log('useQuery output:', queryOutput);
+  const { isLoading, data } = queryOutput;
 
   if (isLoading || !data) {
     return <CircularProgress />;
