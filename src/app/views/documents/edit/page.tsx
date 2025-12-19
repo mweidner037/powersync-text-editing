@@ -1,39 +1,14 @@
 import { useQuery } from '@powersync/react';
 import { Box, CircularProgress, Typography, Switch, FormControlLabel } from '@mui/material';
-import { Suspense, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/components/providers/SystemProvider';
 import { DOCUMENTS_TABLE } from '@/library/powersync/AppSchema';
 import { NavigationPage } from '@/components/navigation/NavigationPage';
-import { SetPowerSyncParams } from '@/components/widgets/SetPowerSyncParams';
-import { GuardBySync } from '@/components/widgets/GuardBySync';
 import { TiptapEditor } from '@/components/editor/TiptapEditor';
 
 export default function DocumentEditPage() {
   const { id: docID } = useParams();
-
-  const supabase = useSupabase();
-  if (!supabase) {
-    console.error(`No Supabase connector has been created yet.`);
-    return;
-  }
-
-  return (
-    <Box>
-      <Suspense fallback={<CircularProgress />}>
-        {/* Pass docID as a param so we sync its bucket, even if it's not one of our documents
-            (including when we are logged in anonymously). */}
-        <SetPowerSyncParams connector={supabase} params={{ current_doc_id: docID }}>
-          <GuardBySync>
-            <DocumentEditSection docID={docID!} />
-          </GuardBySync>
-        </SetPowerSyncParams>
-      </Suspense>
-    </Box>
-  );
-}
-
-const DocumentEditSection = ({ docID }: { docID: string }) => {
   const supabase = useSupabase();
 
   const [isActive, setIsActive] = useState(true);
@@ -41,7 +16,14 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
   const {
     data: [documentRecord],
     isLoading
-  } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID]);
+  } = useQuery<{ name: string }>(`SELECT name FROM ${DOCUMENTS_TABLE} WHERE id = ?`, [docID], {
+    // Wait for all streams associated to this document to load before showing the document.
+    streams: [
+      { name: 'current_document_documents', parameters: { current_doc_id: docID } },
+      { name: 'current_document_text_updates', parameters: { current_doc_id: docID } },
+      { name: 'current_document_presence', parameters: { current_doc_id: docID } }
+    ]
+  });
 
   if (isLoading) {
     return <CircularProgress />;
@@ -66,7 +48,7 @@ const DocumentEditSection = ({ docID }: { docID: string }) => {
         control={<Switch checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />}
         label="Sync Active"
       />
-      <TiptapEditor docID={docID} userID={userID} isActive={isActive} />
+      <TiptapEditor docID={docID!} userID={userID} isActive={isActive} />
     </NavigationPage>
   );
-};
+}
