@@ -22,7 +22,6 @@ import { GuardBySync } from '@/components/widgets/GuardBySync';
 export default function DocumentsPage() {
   const powerSync = usePowerSync();
   const supabase = useSupabase();
-  const status = useStatus();
 
   const [showPrompt, setShowPrompt] = React.useState(false);
   const nameInputRef = React.createRef<HTMLInputElement>();

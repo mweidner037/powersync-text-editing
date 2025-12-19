@@ -1,19 +1,29 @@
-bucket_definitions:
-  user_documents:
-    # Separate bucket per document
-    parameters: select id as doc_id from documents where owner_id = request.user_id()
-    priority: 0
-    data:
-      - select * from documents where id = bucket.doc_id
-      - select * from text_updates where doc_id = bucket.doc_id
-      - select * from presence where room_id = bucket.doc_id
+config:
+  edition: 2
 
-  current_document:
-    accept_potentially_dangerous_queries: true
-    # Separate bucket per document
-    parameters: select id as doc_id from documents where id = (request.parameters() ->> 'current_doc_id')
+streams:
+  # The user's own documents, always synced.
+  user_documents_documents:
+    query: select * from documents where owner_id = auth.user_id()
+    auto_subscribe: true
+  user_documents_text_updates:
+    query: select * from text_updates where doc_id in (select id from documents where owner_id = auth.user_id())
+    auto_subscribe: true
     priority: 0
-    data:
-      - select * from documents where id = bucket.doc_id
-      - select * from text_updates where doc_id = bucket.doc_id
-      - select * from presence where room_id = bucket.doc_id
+  user_documents_presence:
+    query: select * from presence where room_id in (select id from documents where owner_id = auth.user_id())
+    auto_subscribe: true
+    priority: 0
+
+  # The current document being viewed, used for shared docs.
+  current_document_documents:
+    accept_potentially_dangerous_queries: true
+    query: select * from documents where id = subscription.parameter('current_doc_id')
+  current_document_text_updates:
+    accept_potentially_dangerous_queries: true
+    query: select * from text_updates where doc_id = subscription.parameter('current_doc_id')
+    priority: 0
+  current_document_presence:
+    accept_potentially_dangerous_queries: true
+    query: select * from presence where room_id = subscription.parameter('current_doc_id')
+    priority: 0
